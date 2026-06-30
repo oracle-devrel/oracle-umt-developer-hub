@@ -1,6 +1,6 @@
 # converged-database-lab
 
-![validate](https://github.com/oracle-devrel/oracle-umt-developer-hub/actions/workflows/converged-database-lab.yml/badge.svg)
+![validate](https://github.com/rhoulihan/converged-database-lab/actions/workflows/validate.yml/badge.svg)
 
 Runnable proofs for the converged-database article series — every technical claim in the articles executes here, nightly, against a free container.
 
