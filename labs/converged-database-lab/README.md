@@ -1,6 +1,6 @@
 # converged-database-lab
 
-![validate](https://github.com/rhoulihan/converged-database-lab/actions/workflows/validate.yml/badge.svg)
+![validate](https://github.com/oracle-devrel/oracle-umt-developer-hub/actions/workflows/converged-database-lab.yml/badge.svg)
 
 Runnable proofs for the converged-database article series — every technical claim in the articles executes here, nightly, against a free container.
 
@@ -93,8 +93,8 @@ All modules run against one deterministically seeded domain. Seeds use an LCG (s
 
 | # | Slug | Status | Proofs | Assertions | Links |
 |---|------|--------|--------|------------|-------|
-| 01 | `what-is-a-converged-database` | Live | 4 | 14 | [README](modules/01-what-is-a-converged-database/README.md) · article link lands at publish |
-| 02 | `converged-vs-multi-model` | Arrives with its article | — | — | — |
+| 01 | `what-is-a-converged-database` | Live | 5 | 20 | [README](modules/01-what-is-a-converged-database/README.md) · [article](https://blogs.oracle.com/developers/what-is-a-converged-database-definition-five-tests-and-ai-use-cases) |
+| 02 | `converged-vs-multi-model` | Live | 3 | 18 | [README](modules/02-converged-vs-multi-model/README.md) · article link lands at publish |
 | 03 | `vector-db-vs-converged` | Arrives with its article | — | — | — |
 | 04 | `ai-agents-enterprise-data` | Arrives with its article | — | — | — |
 | 05 | `json-graph-vector-relational-one-db` | Arrives with its article | — | — | — |
