@@ -95,11 +95,12 @@ All modules run against one deterministically seeded domain. Seeds use an LCG (s
 |---|------|--------|--------|------------|-------|
 | 01 | `what-is-a-converged-database` | Live | 5 | 20 | [README](modules/01-what-is-a-converged-database/README.md) · [article](https://blogs.oracle.com/developers/what-is-a-converged-database-definition-five-tests-and-ai-use-cases) |
 | 02 | `converged-vs-multi-model` | Live | 3 | 18 | [README](modules/02-converged-vs-multi-model/README.md) · [article](https://blogs.oracle.com/developers/converged-database-vs-multi-model-database-whats-the-difference) |
-| 03 | `vector-db-vs-converged` | Arrives with its article | — | — | — |
-| 04 | `ai-agents-enterprise-data` | Arrives with its article | — | — | — |
-| 05 | `json-graph-vector-relational-one-db` | Arrives with its article | — | — | — |
-| 06 | `polyglot-vs-converged` | Arrives with its article | — | — | — |
-| 07 | `reading-stonebraker-and-pavlo` | Arrives with its article | — | — | — |
+| 03 | `vector-vs-converged` | On branch, CI-green — article in draft | 4 | 19 | [README](https://github.com/oracle-devrel/oracle-umt-developer-hub/blob/article/03-vector-vs-converged/labs/converged-database-lab/modules/03-vector-vs-converged/README.md) · [branch](https://github.com/oracle-devrel/oracle-umt-developer-hub/tree/article/03-vector-vs-converged) · article at publish |
+| 04 | `ai-agents-enterprise-data` | On branch, CI-green — article in draft | 3 | 16 | [README](https://github.com/oracle-devrel/oracle-umt-developer-hub/blob/article/04-ai-agents-enterprise-data/labs/converged-database-lab/modules/04-ai-agents-enterprise-data/README.md) · [branch](https://github.com/oracle-devrel/oracle-umt-developer-hub/tree/article/04-ai-agents-enterprise-data) · article at publish |
+| 05 | `json-graph-vector-relational` | On branch, CI-green — article in draft | 4 | 26 | [README](https://github.com/oracle-devrel/oracle-umt-developer-hub/blob/article/05-json-graph-vector-relational/labs/converged-database-lab/modules/05-json-graph-vector-relational/README.md) · [branch](https://github.com/oracle-devrel/oracle-umt-developer-hub/tree/article/05-json-graph-vector-relational) · article at publish |
+| 06 | `secure-agent-access` | On branch, CI-green — article in draft | 4 | 7 | [README](https://github.com/oracle-devrel/oracle-umt-developer-hub/blob/article/06-secure-agent-access/labs/converged-database-lab/modules/06-secure-agent-access/README.md) · [branch](https://github.com/oracle-devrel/oracle-umt-developer-hub/tree/article/06-secure-agent-access) · article at publish |
+| 07 | `polyglot-vs-converged` | Arrives with its article | — | — | — |
+| 08 | `reading-stonebraker-and-pavlo` | Arrives with its article | — | — | — |
 
 ---
 
