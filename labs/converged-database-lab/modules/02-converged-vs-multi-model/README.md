@@ -92,7 +92,12 @@ immediately does not. Search visibility arrives with the commit, in the same
 engine, with no separate search process, change stream, or refresh interval.
 The lab's `ticket_text_idx` is created with `PARAMETERS ('SYNC (ON COMMIT)')`
 (`docker/init/05-text-vector.sql`), so the text index syncs inside the
-committing transaction.
+committing transaction. On main, this index lives on the ticket **subject**
+(the marker token travels in the subject accordingly): module 03's Hybrid
+Vector Index owns body text search, and an HVI's text component does not sync
+on commit — the transactional read-after-write property this proof
+demonstrates needs the dedicated SYNC(ON COMMIT) index. The article/02 branch
+keeps the body-marker form that the published article's snippets byte-match.
 
 **Commit exception:** this script intentionally COMMITs (read-after-write can
 only be shown across a real commit boundary), so the harness rollback does not
