@@ -1,0 +1,38 @@
+name: oracle-database-kafka-apis
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'labs/oracle-database-kafka-apis/**'
+      - '.github/workflows/oracle-database-kafka-apis.yml'
+  pull_request:
+    paths:
+      - 'labs/oracle-database-kafka-apis/**'
+      - '.github/workflows/oracle-database-kafka-apis.yml'
+  schedule:
+    - cron: '29 6 * * *' # nightly: exercise the Testcontainers-backed TxEventQ examples
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: labs/oracle-database-kafka-apis
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space for Oracle AI Database
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run Kafka API integration tests
+        run: mvn --batch-mode verify

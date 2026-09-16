@@ -5,5 +5,6 @@ Self-contained, runnable labs that validate converged-model claims against a liv
 | Name | Description | Link |
 | --- | --- | --- |
 | converged-database-lab | Runnable proofs for the converged-database article series — JSON Relational Duality, single-table vs. converged modeling, graph, vector, spatial, and full-text claims, each executing against a free Oracle AI Database 26ai container. | [./converged-database-lab](./converged-database-lab) |
+| oracle-database-kafka-apis | Java integration tests demonstrating Oracle AI Database Transactional Event Queues through the Kafka APIs, backed by Testcontainers. | [./oracle-database-kafka-apis](./oracle-database-kafka-apis) |
 
 *More labs coming as the content series expands.*
