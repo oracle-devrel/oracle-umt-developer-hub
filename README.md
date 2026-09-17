@@ -16,9 +16,10 @@ This repository is organized so that each runnable asset lives in its own folder
 
 Self-contained, runnable labs that validate converged-model claims against a live Oracle AI Database 26ai. Each lab includes a Docker environment, a validator, and its own README and quickstart, and runs itself nightly in CI so the proofs stay honest.
 
-| Name | Description | Link |
-| --- | --- | --- |
-| converged-database-lab | Runnable proofs for the converged-database article series — JSON Relational Duality, single-table vs. converged modeling, graph, vector, spatial, and full-text claims, each executing against a free Oracle AI Database 26ai container. | [![View Lab](https://img.shields.io/badge/View%20Lab-blue?style=flat-square)](./labs/converged-database-lab) |
+| Name                       | Description                                                                                                                                                                                                                              | Link                                                                                                             |
+|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| converged-database-lab     | Runnable proofs for the converged-database article series — JSON Relational Duality, single-table vs. converged modeling, graph, vector, spatial, and full-text claims, each executing against a free Oracle AI Database 26ai container. | [![View Lab](https://img.shields.io/badge/View%20Lab-blue?style=flat-square)](./labs/converged-database-lab)     |
+| oracle-database-kafka-apis | Walkthrough of Oracle's Kafka Java API for Transactional Event Queues, or OKafka, backed by Testcontainers.                                                                                                                              | [![View Lab](https://img.shields.io/badge/View%20Lab-blue?style=flat-square)](./labs/oracle-database-kafka-apis) |
 
 *More labs coming as the content series expands.*
 
