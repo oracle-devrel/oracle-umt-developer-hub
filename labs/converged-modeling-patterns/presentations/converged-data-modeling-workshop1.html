@@ -1,0 +1,1268 @@
+<!-- Copyright (c) 2026 Oracle and/or its affiliates. Licensed under UPL 1.0. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model the Domain, Not the Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --paper: #F6F8F9;
+    --panel: #FFFFFF;
+    --ink: #1C2733;
+    --muted: #5A6B7C;
+    --faint: #8B99A7;
+    --hairline: #D8DEE4;
+    --hot: #B3372B;
+    --hot-soft: rgba(179, 55, 43, 0.10);
+    --cool: #0E8A63;
+    --cool-soft: rgba(14, 138, 99, 0.10);
+    --chip: #EDF1F4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #131A22;
+      --panel: #1A232E;
+      --ink: #E8EDF2;
+      --muted: #93A3B4;
+      --faint: #6B7B8C;
+      --hairline: #26313D;
+      --hot: #E06552;
+      --hot-soft: rgba(224, 101, 82, 0.14);
+      --cool: #21A57F;
+      --cool-soft: rgba(33, 165, 127, 0.14);
+      --chip: #222D39;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #131A22;
+    --panel: #1A232E;
+    --ink: #E8EDF2;
+    --muted: #93A3B4;
+    --faint: #6B7B8C;
+    --hairline: #26313D;
+    --hot: #E06552;
+    --hot-soft: rgba(224, 101, 82, 0.14);
+    --cool: #21A57F;
+    --cool-soft: rgba(33, 165, 127, 0.14);
+    --chip: #222D39;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Public Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+  .deck { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+  .slide {
+    position: absolute;
+    inset: 0 0 52px 0;
+    display: none;
+    padding: clamp(20px, 4vh, 44px) clamp(24px, 6vw, 96px) 12px;
+    overflow-y: auto;
+  }
+  .slide.active { display: flex; flex-direction: column; }
+  @media (prefers-reduced-motion: no-preference) {
+    .slide.active { animation: slidein 240ms ease-out; }
+    @keyframes slidein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .eyebrow .clock {
+    margin-left: auto;
+    color: var(--faint);
+    letter-spacing: 0.06em;
+    text-transform: none;
+  }
+  h1, h2 {
+    font-family: "Bricolage Grotesque", "Public Sans", sans-serif;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h2 { font-size: clamp(24px, 3.4vw, 40px); font-weight: 800; line-height: 1.12; margin-bottom: 6px; }
+  .lede { color: var(--muted); max-width: 68ch; margin: 4px 0 0; font-size: clamp(14px, 1.5vw, 17px); }
+  .lede strong { color: var(--ink); }
+
+  .body { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; gap: 14px; }
+
+  figure { margin: 0; }
+  figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  figcaption {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 8px;
+    max-width: 82ch;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .takeaway {
+    border-top: 1px solid var(--hairline);
+    padding-top: 10px;
+    font-size: clamp(14px, 1.5vw, 16.5px);
+    color: var(--muted);
+    max-width: 92ch;
+  }
+  .takeaway strong, .takeaway b { color: var(--ink); }
+
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .num { font-variant-numeric: tabular-nums; }
+  .hot { color: var(--hot); }
+  .cool { color: var(--cool); }
+
+  /* ---------- Title slide ---------- */
+  .title-slide { justify-content: center; text-align: left; }
+  .kicker {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--cool);
+    margin-bottom: 18px;
+  }
+  .title-slide h1 {
+    font-size: clamp(38px, 6vw, 72px);
+    font-weight: 800;
+    line-height: 1.04;
+    max-width: 22ch;
+  }
+  .title-sub { color: var(--muted); font-size: clamp(15px, 1.8vw, 19px); margin: 16px 0 0; max-width: 60ch; }
+  .stat-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 14px 22px 12px;
+    min-width: 150px;
+  }
+  .stat .v {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-weight: 800;
+    font-size: clamp(22px, 3.2vw, 34px);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .stat .l { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- Cards / lists ---------- */
+  .cards { display: grid; gap: 12px; }
+  .cards.two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .cards.three { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card h3 {
+    margin: 0 0 6px;
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .card p { margin: 0; font-size: 14px; color: var(--muted); }
+  .card p b { color: var(--ink); }
+  .card p + p { margin-top: 7px; }
+  .card.hot-edge { border-left: 3px solid var(--hot); }
+  .card.cool-edge { border-left: 3px solid var(--cool); }
+  .card .tag { font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+  .card.hot-edge .tag { color: var(--hot); }
+  .card.cool-edge .tag { color: var(--cool); }
+
+  /* ---------- Charts ---------- */
+  .chart { max-width: 980px; width: 100%; margin: 0 auto; }
+  .legend { display: flex; gap: 20px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .swatch.base { background: var(--hot); }
+  .swatch.opt { background: var(--cool); }
+
+  .cgroup { display: grid; grid-template-columns: minmax(180px, 240px) 1fr 84px; gap: 4px 14px; align-items: center; margin-bottom: 14px; }
+  .cgroup .glabel { font-size: 14px; font-weight: 600; grid-row: span 2; align-self: center; }
+  .cgroup .glabel small { display: block; font-weight: 400; color: var(--faint); font-size: 12px; }
+  .bar-track { position: relative; height: 16px; }
+  .bar { height: 14px; border-radius: 0 4px 4px 0; position: relative; }
+  .bar.base { background: var(--hot); }
+  .bar.opt { background: var(--cool); }
+  .bar-val {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .delta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; font-weight: 600; color: var(--cool); text-align: right; grid-row: span 2; align-self: center; font-variant-numeric: tabular-nums; }
+
+  table.qtable { border-collapse: collapse; width: 100%; max-width: 1000px; margin: 0 auto; font-size: 13.5px; }
+  table.qtable th {
+    text-align: left; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--faint); font-weight: 600; padding: 6px 14px; border-bottom: 1px solid var(--hairline);
+  }
+  table.qtable td { padding: 8px 14px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  table.qtable td.n { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  table.qtable td.r { text-align: right; }
+  .pill {
+    display: inline-block; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; font-weight: 600;
+    padding: 2px 9px; border-radius: 20px; background: var(--cool-soft); color: var(--cool);
+  }
+  .pill.hot { background: var(--hot-soft); color: var(--hot); }
+
+  ol.steps { margin: 0; padding-left: 0; list-style: none; counter-reset: step; display: grid; gap: 8px; }
+  ol.steps li { counter-increment: step; display: flex; gap: 12px; align-items: baseline; font-size: 14.5px; }
+  ol.steps li::before {
+    content: counter(step);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; font-weight: 600;
+    color: var(--cool);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 1px 8px;
+    flex: none;
+  }
+  ol.steps code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; background: var(--chip); padding: 1px 6px; border-radius: 4px; }
+
+  /* ---------- SQL code blocks ---------- */
+  .sqlcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; width: 100%; max-width: 1060px; margin: 0 auto; }
+  .col-label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; margin: 0 0 5px; font-weight: 600;
+  }
+  .col-label.hot { color: var(--hot); }
+  .col-label.cool { color: var(--cool); }
+  pre.code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: clamp(10.5px, 1.05vw, 13px);
+    line-height: 1.55;
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 0;
+    overflow-x: auto;
+    color: var(--ink);
+    white-space: pre;
+    tab-size: 2;
+  }
+  pre.code.cool-edge { border-left: 3px solid var(--cool); }
+  pre.code.hot-edge { border-left: 3px solid var(--hot); }
+  pre.code .k { color: var(--cool); font-weight: 600; }
+  pre.code .c { color: var(--faint); font-style: italic; }
+  pre.code .s { color: var(--hot); }
+  pre.code b { color: var(--ink); font-weight: 700; }
+  .single-code { max-width: 900px; margin: 0 auto; width: 100%; }
+
+  /* ---------- Chrome ---------- */
+  .chrome {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 52px;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 clamp(16px, 4vw, 48px);
+    border-top: 1px solid var(--hairline);
+    background: var(--paper);
+    z-index: 10;
+  }
+  .chrome .brand { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; color: var(--faint); }
+  .dots { display: flex; gap: 6px; margin: 0 auto; flex-wrap: wrap; justify-content: center; }
+  .dots button {
+    width: 20px; height: 20px; padding: 0; border: 0; background: none; cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .dots button::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--hairline); transition: background 120ms; }
+  .dots button.on::after { background: var(--cool); }
+  .dots button:focus-visible { outline: 2px solid var(--cool); outline-offset: 2px; border-radius: 6px; }
+  .navbtns { display: flex; gap: 8px; }
+  .navbtns button {
+    font: 600 13px "Public Sans", sans-serif;
+    color: var(--ink); background: var(--panel);
+    border: 1px solid var(--hairline); border-radius: 8px;
+    padding: 5px 14px; cursor: pointer;
+  }
+  .navbtns button:hover { border-color: var(--muted); }
+  .navbtns button:focus-visible { outline: 2px solid var(--cool); outline-offset: 1px; }
+  .counter { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .progress { position: fixed; bottom: 51px; left: 0; height: 2px; background: var(--cool); z-index: 11; transition: width 200ms ease; }
+  @media (prefers-reduced-motion: reduce) { .progress { transition: none; } .slide.active { animation: none; } }
+
+  .keyhint { font-size: 11.5px; color: var(--faint); }
+  @media (max-width: 720px) {
+    .keyhint, .chrome .brand { display: none; }
+    .cgroup { grid-template-columns: 1fr; }
+    .cgroup .glabel, .cgroup .delta { grid-row: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- ============ 0. TITLE ============ -->
+  <section class="slide title-slide active" aria-label="Title">
+    <div class="kicker">Workshop 1 &middot; Converged Data Modeling &middot; Oracle AI Database 26ai</div>
+    <h1>Model the domain, not the engine</h1>
+    <p class="title-sub">Every document pattern you know is a workaround for something the engine couldn't do. This session walks the patterns, finds the physics underneath each one, and shows where a converged engine dissolves the tradeoff instead of paying for it.</p>
+    <div class="stat-row">
+      <div class="stat"><div class="v num">3</div><div class="l">performance knobs that decide every model</div></div>
+      <div class="stat"><div class="v num">12</div><div class="l">document patterns, walked and stress-tested</div></div>
+      <div class="stat"><div class="v num cool">1</div><div class="l">engine · one transaction · one optimizer</div></div>
+      <div class="stat"><div class="v num">90m</div><div class="l">lecture — the lab is where you build it</div></div>
+    </div>
+  </section>
+
+  <!-- ============ 1. THE FALSE CHOICE / AGENDA ============ -->
+  <section class="slide" aria-label="The false choice and agenda">
+    <div class="eyebrow"><span>Act 0 · Framing</span><span class="clock">0:02 – 0:05</span></div>
+    <h2>The choice was never "relational or document"</h2>
+    <p class="lede">For twenty years we've argued models like they were teams to join. They were never teams. They are <strong>projections of the same truth</strong>, each shaped by what the engine of the day could afford. Change the engine, and the argument changes.</p>
+    <div class="body">
+      <div class="cards two" style="max-width:1040px;">
+        <div class="card hot-edge">
+          <span class="tag">The old frame</span>
+          <h3>Pick a database per workload</h3>
+          <p>Normalize here, denormalize there, buy a purpose-built store for each access pattern, and glue them together. Every pattern in the catalog is a coping strategy for one engine's limits — and every glue joint is an integration tax and a consistency gap.</p>
+        </div>
+        <div class="card cool-edge">
+          <span class="tag">The frame for today</span>
+          <h3>Model once, project many</h3>
+          <p>One canonical form. Many projected shapes — document, graph, vector, relational — served from the same rows, in one transaction, under one optimizer. The pattern doesn't disappear; the <b>cost of choosing it</b> does.</p>
+        </div>
+      </div>
+      <ol class="steps" style="max-width:1000px;margin:2px auto 0;">
+        <li><b>Why converged, why now</b> — the timeline that produced the patterns, and Unified Model Theory.</li>
+        <li><b>The physics</b> — three knobs, write amplification, and the breakpoint that decides every pattern.</li>
+        <li><b>The pattern walk</b> — six industries, six hard edges, and how converged softens each one.</li>
+        <li><b>How you know</b> — the <code>oracle-ai-dev</code> bake-off: reason, then measure where the needle flips.</li>
+      </ol>
+    </div>
+    <p class="takeaway">This is a modeling session, not a product pitch. The rule we're testing all day: <strong>the workload chooses the shape — you measure, you don't guess.</strong></p>
+  </section>
+
+  <!-- ============ 2. TIMELINE (REUSE) ============ -->
+  <section class="slide" aria-label="Data pressure through the ages timeline">
+    <div class="eyebrow"><span>Act 1 · Why converged, why now</span><span class="clock">0:05 – 0:09</span></div>
+    <h2>Data pressure through the ages</h2>
+    <p class="lede">Every era's dominant model was the <strong>right bet for that era's bottleneck</strong>. The patterns we argue about weren't wrong — they were bets placed against a constraint that has since moved.</p>
+    <div class="body">
+      <figure>
+        <svg viewBox="0 0 960 300" role="img" aria-label="Timeline from IMS in the 1960s through relational, distributed NoSQL, to the converged Unified Model era, with the binding constraint at each stage">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <line x1="40" y1="150" x2="920" y2="150" stroke="var(--hairline)" stroke-width="2" marker-end="url(#arr)"/>
+          <!-- Era 1 -->
+          <g>
+            <circle cx="140" cy="150" r="7" fill="var(--hot)"/>
+            <text x="140" y="92" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="700" font-size="17" fill="var(--ink)">1960s–70s</text>
+            <text x="140" y="112" text-anchor="middle" font-size="13" fill="var(--muted)">IMS · hierarchical</text>
+            <text x="140" y="196" text-anchor="middle" font-size="12" fill="var(--faint)">constraint:</text>
+            <text x="140" y="213" text-anchor="middle" font-size="12.5" fill="var(--muted)">navigate by pointer,</text>
+            <text x="140" y="229" text-anchor="middle" font-size="12.5" fill="var(--muted)">storage is scarce</text>
+          </g>
+          <!-- Era 2 -->
+          <g>
+            <circle cx="380" cy="150" r="7" fill="var(--cool)"/>
+            <text x="380" y="92" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="700" font-size="17" fill="var(--ink)">1980s–2000s</text>
+            <text x="380" y="112" text-anchor="middle" font-size="13" fill="var(--muted)">Relational · Codd</text>
+            <text x="380" y="196" text-anchor="middle" font-size="12" fill="var(--faint)">constraint:</text>
+            <text x="380" y="213" text-anchor="middle" font-size="12.5" fill="var(--muted)">correctness &amp; storage —</text>
+            <text x="380" y="229" text-anchor="middle" font-size="12.5" fill="var(--muted)">normalize, join at read</text>
+          </g>
+          <!-- Era 3 -->
+          <g>
+            <circle cx="620" cy="150" r="7" fill="var(--hot)"/>
+            <text x="620" y="92" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="700" font-size="17" fill="var(--ink)">2009–2020</text>
+            <text x="620" y="112" text-anchor="middle" font-size="13" fill="var(--muted)">Distributed NoSQL</text>
+            <text x="620" y="196" text-anchor="middle" font-size="12" fill="var(--faint)">constraint:</text>
+            <text x="620" y="213" text-anchor="middle" font-size="12.5" fill="var(--muted)">scale-out on cheap disk —</text>
+            <text x="620" y="229" text-anchor="middle" font-size="12.5" fill="var(--muted)">denormalize, avoid joins</text>
+          </g>
+          <!-- Era 4 -->
+          <g>
+            <circle cx="860" cy="150" r="8" fill="var(--cool)"/>
+            <text x="860" y="92" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="17" fill="var(--cool)">Now</text>
+            <text x="860" y="112" text-anchor="middle" font-size="13" fill="var(--muted)">Converged · UMT</text>
+            <text x="860" y="196" text-anchor="middle" font-size="12" fill="var(--faint)">constraint lifts:</text>
+            <text x="860" y="213" text-anchor="middle" font-size="12.5" fill="var(--muted)">one source,</text>
+            <text x="860" y="229" text-anchor="middle" font-size="12.5" fill="var(--muted)">every shape</text>
+          </g>
+        </svg>
+        <figcaption>IMS optimized for scarce storage and pointer navigation. Codd traded storage for correctness. NoSQL traded correctness for scale-out. Each move solved the previous era's pain — and inherited a new one.</figcaption>
+      </figure>
+    </div>
+    <p class="takeaway">The document patterns you use every day were invented in the third box — <strong>bets against a distributed engine that couldn't join, couldn't transact across shards, and re-serialized a whole record to touch one field.</strong> Hold that thought.</p>
+  </section>
+
+  <!-- ============ 3. ECONOMICS ============ -->
+  <section class="slide" aria-label="The economics that produced denormalization">
+    <div class="eyebrow"><span>Act 1 · Why converged, why now</span><span class="clock">0:09 – 0:12</span></div>
+    <h2>Why we ever denormalized: the economics flipped</h2>
+    <p class="lede">Normalization is a <strong>storage-saving</strong> technique from an era when storage was the expensive resource. That era ended. But the reflexes it created — and the reflexes the <em>next</em> era created — are still driving models.</p>
+    <div class="body">
+      <div class="cards two" style="max-width:1040px;">
+        <div class="card">
+          <h3>Then: storage dear, joins cheap enough</h3>
+          <p>Disk cost real money, so you stored each fact once and reassembled it with joins. Codd's normal forms are, at bottom, a <b>deduplication</b> discipline.</p>
+        </div>
+        <div class="card">
+          <h3>Now: storage cheap, compute &amp; latency dear</h3>
+          <p>Storage is nearly free; the scarce resources are CPU cycles, network hops, and human milliseconds. So you pre-shape data for the read — <b>denormalize at read time</b>.</p>
+        </div>
+      </div>
+      <div class="card cool-edge" style="max-width:1040px;">
+        <span class="tag">The move the industry missed</span>
+        <p style="font-size:14.5px;">The right response to cheap storage isn't "throw away the normalized truth." It's "<b>keep the normalized truth, and pay cheap storage to also materialize the shapes each consumer wants.</b>" Denormalization becomes a <b>projection</b>, not a fork. You get read-time shape without giving up write-time correctness — because the engine maintains both.</p>
+      </div>
+    </div>
+    <p class="takeaway">Denormalization was always about spending the cheap resource to save the dear one. <strong>The mistake was making it a one-way, hand-maintained copy instead of an engine-maintained projection.</strong></p>
+  </section>
+
+  <!-- ============ 4. CODD / CANONICAL ============ -->
+  <section class="slide" aria-label="Codd, canonical form, and projection">
+    <div class="eyebrow"><span>Act 1 · Why converged, why now</span><span class="clock">0:12 – 0:15</span></div>
+    <h2>Codd already drew the map</h2>
+    <p class="lede">Normalized relational is the <strong>canonical form</strong> — the minimal, non-redundant statement of the facts. Everything else a consumer wants is a <strong>view</strong> over it. Codd's own relational algebra defined the projections; we just stopped materializing them where they hurt.</p>
+    <div class="body">
+      <figure>
+        <svg viewBox="0 0 960 260" role="img" aria-label="Canonical normalized form in the center projecting outward into document, graph, vector, and relational shapes">
+          <defs>
+            <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <!-- center -->
+          <rect x="378" y="96" width="204" height="68" rx="10" fill="var(--cool-soft)" stroke="var(--cool)" stroke-width="2"/>
+          <text x="480" y="126" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="16" fill="var(--ink)">Canonical Form</text>
+          <text x="480" y="147" text-anchor="middle" font-size="12.5" fill="var(--muted)">normalized · one source of truth</text>
+          <!-- projections -->
+          <g stroke="var(--cool)" stroke-width="1.6" fill="none">
+            <path d="M378,112 C300,112 240,70 168,70" marker-end="url(#arr2)"/>
+            <path d="M378,150 C300,150 240,192 168,192" marker-end="url(#arr2)"/>
+            <path d="M582,112 C660,112 720,70 792,70" marker-end="url(#arr2)"/>
+            <path d="M582,150 C660,150 720,192 792,192" marker-end="url(#arr2)"/>
+          </g>
+          <g font-family="Bricolage Grotesque" font-weight="700" font-size="14" fill="var(--ink)" text-anchor="middle">
+            <rect x="80" y="52" width="120" height="36" rx="8" fill="var(--panel)" stroke="var(--hairline)"/><text x="140" y="75">Document</text>
+            <rect x="80" y="174" width="120" height="36" rx="8" fill="var(--panel)" stroke="var(--hairline)"/><text x="140" y="197">Graph</text>
+            <rect x="760" y="52" width="120" height="36" rx="8" fill="var(--panel)" stroke="var(--hairline)"/><text x="820" y="75">Vector</text>
+            <rect x="760" y="174" width="120" height="36" rx="8" fill="var(--panel)" stroke="var(--hairline)"/><text x="820" y="197">Relational</text>
+          </g>
+          <text x="480" y="212" text-anchor="middle" font-size="12.5" fill="var(--faint)">projection = a declarative shape mapping, maintained by the engine</text>
+        </svg>
+        <figcaption>Codd also warned against the alternative: scattering the same facts across independent stores, each with its own truth. That's polyglot persistence — and he named the failure mode before it had a marketing category.</figcaption>
+      </figure>
+    </div>
+    <p class="takeaway"><strong>Model the domain in canonical form. Project the access.</strong> The document is a projection. The graph is a projection. The vector index is a projection. One truth, many shapes.</p>
+  </section>
+
+  <!-- ============ 5. POLYGLOT PROBLEM ============ -->
+  <section class="slide" aria-label="The polyglot problem and AI hallucination">
+    <div class="eyebrow"><span>Act 1 · Why converged, why now</span><span class="clock">0:15 – 0:18</span></div>
+    <h2>Polyglot persistence: five stores, five versions of the truth</h2>
+    <p class="lede">"Purpose-built" sounds disciplined. In practice it means the same fact lives in five engines with five consistency models — and <strong>nothing owns the reconciliation</strong>. That was tolerable when a human read the answer. It is not tolerable when an AI <em>acts</em> on it.</p>
+    <div class="body">
+      <div class="cards three" style="max-width:1060px;">
+        <div class="card hot-edge">
+          <h3>The integration tax</h3>
+          <p>Every cross-store request pays serialization, a network hop, and an auth handshake. Chains of them dominate latency and become the thing you spend your quarter debugging.</p>
+        </div>
+        <div class="card hot-edge">
+          <h3>The consistency gap</h3>
+          <p>The document store, the search index, and the vector store converge <b>eventually</b>. Between writes they disagree. Which copy did the model just read?</p>
+        </div>
+        <div class="card hot-edge">
+          <h3>The AI failure mode</h3>
+          <p>Feed a model stale + conflicting facts and it doesn't error — it <b>confidently hallucinates</b>. When it then takes an action, the stale context becomes a business liability.</p>
+        </div>
+      </div>
+      <div class="card" style="max-width:1060px;">
+        <p style="font-size:14.5px;"><b>State Vector Dissonance:</b> the vector index reflects the world as of the last embed job; the operational tables reflect the world as of this transaction. RAG retrieves from the first and reasons as if it were the second. The wider the gap, the more confident the wrong answer.</p>
+      </div>
+    </div>
+    <p class="takeaway">AI didn't create this flaw — it <strong>removed our tolerance for it</strong>. Immediate consistency across vectors, documents, graph, and relational stops being a nicety and becomes a correctness requirement.</p>
+  </section>
+
+  <!-- ============ 6. UMT FRAMEWORK (REUSE) ============ -->
+  <section class="slide" aria-label="Unified Model Theory framework and vocabulary">
+    <div class="eyebrow"><span>Act 1 · Why converged, why now</span><span class="clock">0:18 – 0:20</span></div>
+    <h2>Unified Model Theory: the vocabulary for the rest of the day</h2>
+    <p class="lede">UMT is just Codd's insight, made operational and given names. Five terms — once you have them, every modeling decision in this deck has a precise place to live.</p>
+    <div class="body">
+      <table class="qtable" aria-label="UMT vocabulary">
+        <thead><tr><th>Term</th><th>What it is</th><th>In practice</th></tr></thead>
+        <tbody>
+          <tr><td><b>Canonical Form</b></td><td>The normalized, non-redundant truth</td><td>Your base tables — modeled to the domain, not the screen</td></tr>
+          <tr><td><b>Projected Shape</b></td><td>The form a consumer wants to read</td><td>A document, a graph, a vector, a flat rowset</td></tr>
+          <tr><td><b>Projection</b></td><td>The declarative mapping between them</td><td>A duality view, a materialized view, an index</td></tr>
+          <tr><td><b>Access Surface</b></td><td>The API the consumer speaks</td><td>SQL, SQL/JSON, SQL/PGQ, the MongoDB wire protocol</td></tr>
+          <tr><td><b>Access Dimension</b></td><td>The pattern the query expresses</td><td>Point read, range, aggregate, traverse, similarity</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="takeaway"><strong>Model once. Project as documents, graphs, time series, or relations. Serve every consumer from one source of truth.</strong> That sentence is the whole theory — the rest is physics and tradeoffs.</p>
+  </section>
+
+  <!-- ============ 7. MONEY QUOTE + ONE QUERY ============ -->
+  <section class="slide" aria-label="Model once project many, one query across four models">
+    <div class="eyebrow"><span>Act 1 · Why converged, why now</span><span class="clock">0:20 – 0:22</span></div>
+    <h2>One query, four models, one transaction</h2>
+    <p class="lede">The theory only earns its keep if the engine can serve every projection <strong>together</strong>. Here relational, JSON, graph, and vector answer a single question — no hops, no copies, no eventual anything.</p>
+    <div class="body">
+      <div class="single-code">
+        <p class="col-label cool">Find the 5 parties nearest a query embedding, tier from their JSON profile, reachable through ≤3 control hops</p>
+<pre class="code cool-edge"><span class="k">SELECT</span> p.name,
+       <span class="k">JSON_VALUE</span>(p.profile, <span class="s">'$.tier'</span>)                <span class="c">-- JSON projection</span>
+       <span class="k">VECTOR_DISTANCE</span>(p.embedding, :q, COSINE) <span class="k">AS</span> score  <span class="c">-- vector</span>
+<span class="k">FROM</span>   parties p
+<span class="k">WHERE</span>  p.party_id <span class="k">IN</span> (
+         <span class="k">SELECT</span> owner <span class="k">FROM</span> <span class="k">GRAPH_TABLE</span> ( ownership          <span class="c">-- graph</span>
+           <span class="k">MATCH</span> (a) -[:CONTROLS]-&gt;{1,3} (b)
+           <span class="k">WHERE</span> a.party_id = :root
+           <span class="k">COLUMNS</span> (b.party_id <span class="k">AS</span> owner) ) )
+<span class="k">ORDER BY</span> score
+<span class="k">FETCH FIRST</span> 5 <span class="k">ROWS ONLY</span>;                            <span class="c">-- relational</span></pre>
+      </div>
+    </div>
+    <p class="takeaway">Four access dimensions, one statement, one consistency model, one security boundary. <strong>This is the payoff of "model once, project many" — and it's the standard every pattern in the next hour is measured against.</strong></p>
+  </section>
+
+  <!-- ============ 8. THREE KNOBS ============ -->
+  <section class="slide" aria-label="The three performance knobs">
+    <div class="eyebrow"><span>Act 2 · The physics</span><span class="clock">0:22 – 0:26</span></div>
+    <h2>Three knobs decide every model</h2>
+    <p class="lede">Strip away the vocabulary and every modeling decision — embed or reference, precompute or query — turns on three measurable quantities. Set these, and the model is half-chosen for you.</p>
+    <div class="body">
+      <figure>
+        <svg viewBox="0 0 960 250" role="img" aria-label="Three dials: diversity of access patterns, read/write ratio, and update percentage with locality">
+          <g>
+            <circle cx="160" cy="110" r="58" fill="none" stroke="var(--hairline)" stroke-width="10"/>
+            <path d="M160,110 L160,52" stroke="var(--cool)" stroke-width="10" stroke-linecap="round" transform="rotate(38 160 110)"/>
+            <circle cx="160" cy="110" r="6" fill="var(--cool)"/>
+            <text x="160" y="192" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="700" font-size="15" fill="var(--ink)">1 · Diversity</text>
+            <text x="160" y="212" text-anchor="middle" font-size="12.5" fill="var(--muted)">how many distinct</text>
+            <text x="160" y="228" text-anchor="middle" font-size="12.5" fill="var(--muted)">access patterns?</text>
+          </g>
+          <g>
+            <circle cx="480" cy="110" r="58" fill="none" stroke="var(--hairline)" stroke-width="10"/>
+            <path d="M480,110 L480,52" stroke="var(--cool)" stroke-width="10" stroke-linecap="round" transform="rotate(-30 480 110)"/>
+            <circle cx="480" cy="110" r="6" fill="var(--cool)"/>
+            <text x="480" y="192" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="700" font-size="15" fill="var(--ink)">2 · Read / Write</text>
+            <text x="480" y="212" text-anchor="middle" font-size="12.5" fill="var(--muted)">which side of the</text>
+            <text x="480" y="228" text-anchor="middle" font-size="12.5" fill="var(--muted)">ratio dominates?</text>
+          </g>
+          <g>
+            <circle cx="800" cy="110" r="58" fill="none" stroke="var(--hairline)" stroke-width="10"/>
+            <path d="M800,110 L800,52" stroke="var(--hot)" stroke-width="10" stroke-linecap="round" transform="rotate(72 800 110)"/>
+            <circle cx="800" cy="110" r="6" fill="var(--hot)"/>
+            <text x="800" y="192" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="700" font-size="15" fill="var(--ink)">3 · Update % + locality</text>
+            <text x="800" y="212" text-anchor="middle" font-size="12.5" fill="var(--muted)">what fraction changes,</text>
+            <text x="800" y="228" text-anchor="middle" font-size="12.5" fill="var(--muted)">and <tspan fill="var(--hot)">where does it land?</tspan></text>
+          </g>
+        </svg>
+        <figcaption>Knob 3 is the one document modeling under-weights: not just how often you write, but <em>where</em> the write lands inside the shape. That's write amplification — and it's the whole ballgame.</figcaption>
+      </figure>
+    </div>
+    <p class="takeaway"><strong>Diversity of access · read/write ratio · update % and where it lands.</strong> High diversity wants projections. Read-heavy wants precomputation. But knob 3 can veto both — which is where the patterns come from.</p>
+  </section>
+
+  <!-- ============ 9. WRITE AMPLIFICATION PHYSICS ============ -->
+  <section class="slide" aria-label="Write amplification physics in a document engine">
+    <div class="eyebrow"><span>Act 2 · The physics</span><span class="clock">0:26 – 0:29</span></div>
+    <h2>Why the patterns exist: write amplification</h2>
+    <p class="lede">Every document pattern in the catalog is, underneath, a reaction to one physical fact: in a document engine, <strong>touching one field can rewrite the whole record</strong>. Understand this and the patterns stop being folklore.</p>
+    <div class="body">
+      <figure>
+        <svg viewBox="0 0 960 250" role="img" aria-label="Updating one field forces re-serialization of an entire leaf page in a copy-on-write document engine">
+          <defs>
+            <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <text x="150" y="40" text-anchor="middle" font-size="13" fill="var(--muted)">one large document</text>
+          <rect x="60" y="56" width="180" height="150" rx="8" fill="var(--panel)" stroke="var(--hairline)"/>
+          <rect x="72" y="70" width="156" height="18" rx="3" fill="var(--chip)"/>
+          <rect x="72" y="94" width="156" height="18" rx="3" fill="var(--hot)" opacity="0.85"/>
+          <text x="150" y="107" text-anchor="middle" font-size="11" fill="#fff">update ONE field</text>
+          <rect x="72" y="118" width="156" height="18" rx="3" fill="var(--chip)"/>
+          <rect x="72" y="142" width="156" height="18" rx="3" fill="var(--chip)"/>
+          <rect x="72" y="166" width="156" height="18" rx="3" fill="var(--chip)"/>
+          <line x1="248" y1="131" x2="360" y2="131" stroke="currentColor" stroke-width="1.6" marker-end="url(#arr3)"/>
+          <text x="304" y="122" text-anchor="middle" font-size="11.5" fill="var(--muted)">forces</text>
+          <text x="560" y="40" text-anchor="middle" font-size="13" fill="var(--hot)">re-serialize the ENTIRE leaf page</text>
+          <rect x="368" y="56" width="384" height="150" rx="8" fill="var(--hot-soft)" stroke="var(--hot)" stroke-width="1.5"/>
+          <g fill="var(--hot)" opacity="0.6">
+            <rect x="380" y="70" width="168" height="18" rx="3"/><rect x="556" y="70" width="184" height="18" rx="3"/>
+            <rect x="380" y="94" width="168" height="18" rx="3"/><rect x="556" y="94" width="184" height="18" rx="3"/>
+            <rect x="380" y="118" width="168" height="18" rx="3"/><rect x="556" y="118" width="184" height="18" rx="3"/>
+            <rect x="380" y="142" width="168" height="18" rx="3"/><rect x="556" y="142" width="184" height="18" rx="3"/>
+            <rect x="380" y="166" width="168" height="18" rx="3"/><rect x="556" y="166" width="184" height="18" rx="3"/>
+          </g>
+          <g font-size="12.5" fill="var(--muted)">
+            <text x="800" y="96">+ document-level</text>
+            <text x="800" y="114">&nbsp;&nbsp;lock held</text>
+            <text x="800" y="150">+ marches toward</text>
+            <text x="800" y="168">&nbsp;&nbsp;the 16 MB cap</text>
+          </g>
+        </svg>
+        <figcaption>Copy-on-write leaf pages (WiredTiger): the write cost scales with document <em>size</em>, not with the size of your change. A 2 MB document costs 2 MB to touch — every time, for a one-byte edit.</figcaption>
+      </figure>
+    </div>
+    <p class="takeaway"><strong>The bigger and hotter the document, the more every write costs.</strong> Bucket, Computed, Subset, Pre-Allocation — they all exist to keep documents small and writes cheap. They are write-amplification management, dressed up as design patterns.</p>
+  </section>
+
+  <!-- ============ 10. BREAKPOINT INEQUALITY ============ -->
+  <section class="slide" aria-label="The breakpoint inequality">
+    <div class="eyebrow"><span>Act 2 · The physics</span><span class="clock">0:29 – 0:31</span></div>
+    <h2>The breakpoint: when precomputing stops paying</h2>
+    <p class="lede">Every "should I maintain this precomputed shape?" decision reduces to one inequality. Precompute only when the reads you save outweigh the writes you add.</p>
+    <div class="body">
+      <figure>
+        <svg viewBox="0 0 960 190" role="img" aria-label="Breakpoint inequality: read frequency times read cost must exceed write frequency times maintenance cost">
+          <rect x="120" y="52" width="720" height="86" rx="12" fill="var(--panel)" stroke="var(--hairline)"/>
+          <text x="300" y="96" text-anchor="middle" font-family="IBM Plex Mono" font-weight="600" font-size="18" fill="var(--cool)">read_freq × read_cost</text>
+          <text x="300" y="120" text-anchor="middle" font-size="12.5" fill="var(--muted)">what precomputing saves</text>
+          <text x="480" y="102" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="30" fill="var(--ink)">&gt;</text>
+          <text x="660" y="96" text-anchor="middle" font-family="IBM Plex Mono" font-weight="600" font-size="18" fill="var(--hot)">write_freq × maint_cost</text>
+          <text x="660" y="120" text-anchor="middle" font-size="12.5" fill="var(--muted)">what precomputing costs</text>
+        </svg>
+        <figcaption>When the inequality holds, precompute. When it flips, stop maintaining the shape and query it on demand. The pattern isn't good or bad — it's a bet on this inequality at your cardinality.</figcaption>
+      </figure>
+      <div class="cards two" style="max-width:1000px;">
+        <div class="card hot-edge">
+          <p><b>What moves the right side up:</b> more writes, fatter documents, worse write amplification — a subset trimmed on every write to serve a read that rarely happens.</p>
+        </div>
+        <div class="card cool-edge">
+          <p><b>What a cost-based optimizer does:</b> it lowers <code style="font-family:'IBM Plex Mono';font-size:12px;">read_cost</code> — an index-only Top-N, a hash join, parallel scan — so the inequality holds at a shape you never had to hand-maintain.</p>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway"><strong>A better optimizer moves the breakpoint.</strong> Patterns that "must" be precomputed on a document engine can be queried live on a converged one — because the read side just got cheaper.</p>
+  </section>
+
+  <!-- ============ 11. DUALITY CHANGES HOW KNOBS GET SET ============ -->
+  <section class="slide" aria-label="Duality changes how the knobs get set">
+    <div class="eyebrow"><span>Act 2 · The physics</span><span class="clock">0:31 – 0:33</span></div>
+    <h2>Duality doesn't change the knobs — it changes how they get set</h2>
+    <p class="lede">The document catalog offers two resolutions to every modeling tension: <strong>embed</strong> or <strong>reference</strong>. Converged adds a third the catalog never had — <strong>project it</strong> — and it's the one that dissolves the tradeoff instead of trading one cost for another.</p>
+    <div class="body">
+      <div class="cards three" style="max-width:1060px;">
+        <div class="card hot-edge">
+          <span class="tag">Resolution 1</span>
+          <h3>Embed</h3>
+          <p>Fast reads, but you copy the fact. Every copy is write amplification and an update anomaly waiting to happen. Great until knob 3 turns.</p>
+        </div>
+        <div class="card hot-edge">
+          <span class="tag">Resolution 2</span>
+          <h3>Reference</h3>
+          <p>No duplication, but the read now needs <code style="font-family:'IBM Plex Mono';font-size:12px;">$lookup</code> or a second round trip — and the document engine has no optimizer to make that join cheap.</p>
+        </div>
+        <div class="card cool-edge">
+          <span class="tag">Resolution 3 — new</span>
+          <h3>Project it</h3>
+          <p>Store the fact once in canonical form; let a <b>duality view</b> project it into the document shape, live, maintained by the engine. Read shape without write penalty.</p>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">Same three knobs. But now embed/reference isn't a permanent architectural fork — it's a projection choice you can change without a migration. <strong>The needle you couldn't move before is now a setting.</strong></p>
+  </section>
+
+  <!-- ============ 12. PATTERN WALK METHOD ============ -->
+  <section class="slide" aria-label="How to read the pattern walk">
+    <div class="eyebrow"><span>Act 3 · The pattern walk</span><span class="clock">0:33 – 0:35</span></div>
+    <h2>Six patterns, six industries, one method</h2>
+    <p class="lede">Each pattern gets the same four beats. We're not asking "is this pattern good?" — we're asking "<strong>at what point does its tradeoff flip, and what does converged do at that point?</strong>"</p>
+    <div class="body">
+      <ol class="steps" style="max-width:900px;margin:0 auto;">
+        <li><b>The use case</b> — a real access pattern from a real industry, not a toy.</li>
+        <li><b>The hard edge</b> — the knob setting where the pattern starts to hurt (almost always knob 3).</li>
+        <li><b>Where the needle flips</b> — the cardinality or write rate that turns the pattern from clever to costly.</li>
+        <li><b>The converged softening</b> — the mechanism, with live SQL, that moves the breakpoint.</li>
+      </ol>
+      <table class="qtable" aria-label="Pattern to industry map" style="margin-top:6px;">
+        <thead><tr><th>Pattern</th><th>Industry</th><th>Softened by</th></tr></thead>
+        <tbody>
+          <tr><td>Extended Reference</td><td>Wealth management</td><td>JSON Duality View</td></tr>
+          <tr><td>Computed</td><td>Telecom</td><td>MV refresh-on-commit · index-only Top-N</td></tr>
+          <tr><td>Bucket / time-series</td><td>Manufacturing IoT</td><td>Partitioned range · <code style="font-family:'IBM Plex Mono';font-size:12px;">$sql</code> in pipeline</td></tr>
+          <tr><td>Subset</td><td>Insurance</td><td>Composite index · <code style="font-family:'IBM Plex Mono';font-size:12px;">FETCH FIRST</code></td></tr>
+          <tr><td>Tree / Hierarchy</td><td>Manufacturing BOM</td><td><code style="font-family:'IBM Plex Mono';font-size:12px;">GRAPH_TABLE</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">CONNECT BY</code></td></tr>
+          <tr><td>Outlier</td><td>Financial</td><td>Adaptive plans · partitioning</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="takeaway">Watch for the refrain: <strong>the pattern was a correct bet against a limited engine.</strong> Remove the limit and the bet — and its maintenance cost — is optional.</p>
+  </section>
+
+  <!-- ============ 13. EXTENDED REFERENCE ============ -->
+  <section class="slide" aria-label="Extended Reference pattern in wealth management">
+    <div class="eyebrow"><span>Act 3 · Pattern 1 — Extended Reference</span><span class="clock">0:35 – 0:40</span></div>
+    <h2>Wealth management: the advisor who moved offices</h2>
+    <p class="lede">To avoid a lookup, the advisor's contact card is <strong>embedded in every client and every account document</strong>. Reads are instant. Then the advisor changes offices.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — fan-out update across hundreds of thousands of copies</p>
+<pre class="code hot-edge">db.clients.updateMany(
+  { <span class="s">"advisor.id"</span>: <span class="s">"A-317"</span> },
+  { $set: { <span class="s">"advisor.office"</span>: <span class="s">"Leeds"</span> } }
+)
+<span class="c">// same again on accounts, statements,</span>
+<span class="c">// alerts ... every collection that</span>
+<span class="c">// embedded the card. Miss one =</span>
+<span class="c">// an update anomaly the LLM will read.</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — project the mutable, copy only the immutable</p>
+<pre class="code cool-edge"><span class="k">CREATE JSON RELATIONAL DUALITY VIEW</span> client_dv <span class="k">AS</span>
+  Clients @insert @update @delete {
+    _id      : client_id
+    name     : name
+    advisor  : Advisors @noinsert @nodelete {   <span class="c">-- ref, live</span>
+                 id     : advisor_id
+                 office : office
+               }
+  };
+<span class="c">-- advisor moves once, in one row; every</span>
+<span class="c">-- projected client doc reflects it instantly.</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">The needle flips the moment the "reference" field can <strong>change</strong>. Snapshot the immutable (the trade price at execution); <strong>project the mutable</strong> (the advisor's current office). One fact, one place, zero fan-out.</p>
+  </section>
+
+  <!-- ============ 14. COMPUTED ============ -->
+  <section class="slide" aria-label="Computed pattern in telecom">
+    <div class="eyebrow"><span>Act 3 · Pattern 2 — Computed</span><span class="clock">0:40 – 0:45</span></div>
+    <h2>Telecom: the cycle-usage counter on a hot document</h2>
+    <p class="lede">Each subscriber doc carries a running <strong>cycle-usage rollup</strong> so the app never re-aggregates. But every call detail record now re-writes the parent document — a write storm on the hottest docs you own.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — counter-sharding to survive the write storm</p>
+<pre class="code hot-edge"><span class="c">// every CDR rewrites the subscriber doc;</span>
+<span class="c">// to spread the heat you split the counter</span>
+<span class="c">// into N shard-docs, then fan-in on read:</span>
+db.usage_shards.aggregate([
+  { $match: { sub: <span class="s">"S-9"</span> } },
+  { $group: { _id: <span class="s">"$sub"</span>,
+              bytes: { $sum: <span class="s">"$bytes"</span> } } }
+])  <span class="c">// wrote once, now read N docs to total it</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — the rollup with staleness = 0</p>
+<pre class="code cool-edge"><span class="k">CREATE MATERIALIZED VIEW</span> mv_cycle_usage
+  <span class="k">REFRESH FAST ON COMMIT AS</span>          <span class="c">-- engine maintains it</span>
+<span class="k">SELECT</span> subscriber_id,
+       <span class="k">SUM</span>(bytes) <span class="k">AS</span> cycle_bytes,
+       <span class="k">COUNT</span>(*)    <span class="k">AS</span> cdr_count
+<span class="k">FROM</span>   cdr
+<span class="k">GROUP BY</span> subscriber_id;
+<span class="c">-- "Computed", but transactional and current.</span></pre>
+        </div>
+      </div>
+      <div class="card cool-edge" style="max-width:1060px;">
+        <p style="font-size:13.5px;"><b>Value-add — the hot Top-N:</b> "top 20 subscribers by usage this cycle" is agony in a document engine (re-sort millions, or maintain a leaderboard doc). Converged: a composite index on <code style="font-family:'IBM Plex Mono';font-size:12px;">(cycle_bytes DESC, subscriber_id)</code> makes it an <b>index-only scan</b> — <b class="cool">60s&nbsp;→&nbsp;500ms</b>, fully ACID, nothing to maintain.</p>
+      </div>
+    </div>
+    <p class="takeaway">The needle flips when write frequency on the parent exceeds the reads the rollup saves. <strong>Move the aggregation into an engine-maintained projection and the write storm disappears — the counter is current without touching a hot document.</strong></p>
+  </section>
+
+  <!-- ============ 15. BUCKET / TIME SERIES ============ -->
+  <section class="slide" aria-label="Bucket pattern in manufacturing IoT">
+    <div class="eyebrow"><span>Act 3 · Pattern 3 — Bucket</span><span class="clock">0:45 – 0:50</span></div>
+    <h2>Manufacturing IoT: the bucket that marches to 16 MB</h2>
+    <p class="lede">Sensor readings are bucketed <strong>per machine, per hour</strong> to keep document counts down. It's the canonical write-amplification pattern: every reading <code style="font-family:'IBM Plex Mono';font-size:12px;">$push</code>-es into the bucket and re-serializes it — and hot sensors march the bucket toward the hard cap.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — the bucket grows, the write cost grows with it</p>
+<pre class="code hot-edge">db.readings.updateOne(
+  { machine: <span class="s">"M-118"</span>, hr: <span class="s">"2026-09-25T14"</span> },
+  { $push: { pts: { t: ts, v: 71.4 } },
+    $inc:  { n: 1 } }
+)
+<span class="c">// each push re-serializes the whole bucket;</span>
+<span class="c">// a busy sensor hits the 16 MB doc cap and</span>
+<span class="c">// analytics can't scale past one bucket.</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — partitioned relational time-series</p>
+<pre class="code cool-edge"><span class="c">-- readings: RANGE-partitioned on ts, auto-interval</span>
+<span class="k">SELECT</span> <span class="c">/*+ PARALLEL(8) */</span> machine_id,
+       <span class="k">TRUNC</span>(ts,<span class="s">'HH'</span>) <span class="k">AS</span> hour,
+       <span class="k">AVG</span>(val), <span class="k">MAX</span>(val), <span class="k">COUNT</span>(*)
+<span class="k">FROM</span>   readings
+<span class="k">WHERE</span>  ts &gt;= SYSTIMESTAMP - <span class="k">INTERVAL</span> <span class="s">'7'</span> DAY
+<span class="k">GROUP BY</span> machine_id, <span class="k">TRUNC</span>(ts,<span class="s">'HH'</span>);
+<span class="c">-- append-only inserts; no cap, no re-serialize.</span></pre>
+        </div>
+      </div>
+      <div class="card cool-edge" style="max-width:1060px;">
+        <p style="font-size:13.5px;"><b>Value-add — <code style="font-family:'IBM Plex Mono';font-size:12px;">$sql</code> in the pipeline:</b> a document team keeps its aggregation pipeline and drops full SQL — parallel scan, window functions, joins — into one <code style="font-family:'IBM Plex Mono';font-size:12px;">$sql</code> stage. The heavy analytic that <b>timed out</b> as a pipeline runs to completion with no 16 MB / 100 MB pipeline caps. <b class="cool">Scale-out parallelism, mid-pipeline.</b></p>
+      </div>
+    </div>
+    <p class="takeaway">The needle flips on the <strong>hottest</strong> sensors — exactly the ones you care about. Append-only inserts have flat write cost; the rollup is a <code style="font-family:'IBM Plex Mono';font-size:12px;">GROUP BY</code> over a partition range, parallelized by the optimizer, not by you.</p>
+  </section>
+
+  <!-- ============ 16. SUBSET ============ -->
+  <section class="slide" aria-label="Subset pattern in insurance">
+    <div class="eyebrow"><span>Act 3 · Pattern 4 — Subset</span><span class="clock">0:50 – 0:55</span></div>
+    <h2>Insurance: the recent-claims subset nobody reads</h2>
+    <p class="lede">A policy document keeps the <strong>10 most recent claims inline</strong> for a fast summary; cold history lives elsewhere. Claims arrive constantly, so you push-and-trim on <em>every</em> write — to serve a full read that happens rarely.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — maintain the subset on every write</p>
+<pre class="code hot-edge">db.policies.updateOne(
+  { _id: <span class="s">"P-42"</span> },
+  { $push: { recentClaims: {
+      $each:  [ newClaim ],
+      $sort:  { ts: -1 },
+      $slice: 10 } } }   <span class="c">// trim to 10</span>
+)
+<span class="c">// write amplification on the write path to</span>
+<span class="c">// optimize a read path that's mostly idle.</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — stop maintaining it; query it</p>
+<pre class="code cool-edge"><span class="c">-- composite index: (policy_id, event_ts DESC)</span>
+<span class="k">SELECT</span> claim_id, amount, event_ts
+<span class="k">FROM</span>   claims
+<span class="k">WHERE</span>  policy_id = :id
+<span class="k">ORDER BY</span> event_ts <span class="k">DESC</span>
+<span class="k">FETCH FIRST</span> 10 <span class="k">ROWS ONLY</span>;
+<span class="c">-- index-only, O(log n) seek + 10-row scan.</span>
+<span class="c">-- a duality view reunites hot + cold on read.</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">Subset is a bet that reads dwarf writes. When they don't, you're <strong>paying the write side to optimize a read that hardly fires</strong>. A pre-sorted composite index gives the same instant Top-N with zero write-path cost.</p>
+  </section>
+
+  <!-- ============ 17. TREE / HIERARCHY ============ -->
+  <section class="slide" aria-label="Tree and hierarchy pattern in manufacturing BOM">
+    <div class="eyebrow"><span>Act 3 · Pattern 5 — Tree / Hierarchy</span><span class="clock">0:55 – 1:00</span></div>
+    <h2>Manufacturing: the bill of materials you have to re-parent</h2>
+    <p class="lede">A BOM stored as a <strong>materialized path</strong> makes "everything under this assembly" a fast prefix scan. Then engineering re-parents a subassembly — and you rewrite the path of <em>every descendant</em>. And "which assemblies use part X?" a prefix can't answer at all.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — re-parent rewrites the whole subtree</p>
+<pre class="code hot-edge"><span class="c">// move subassembly SA-7 under A-2:</span>
+db.bom.updateMany(
+  { path: /^root\.A-1\.SA-7/ },
+  [ { $set: { path: { $replaceOne: {
+        input: <span class="s">"$path"</span>,
+        find:  <span class="s">"root.A-1.SA-7"</span>,
+        replacement: <span class="s">"root.A-2.SA-7"</span> } } } } ]
+)  <span class="c">// write amp ∝ size of the subtree</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — trees stay cheap, graphs become possible</p>
+<pre class="code cool-edge"><span class="c">-- explosion: every descendant of an assembly</span>
+<span class="k">SELECT</span> part_id, <span class="k">LEVEL</span> depth <span class="k">FROM</span> bom
+<span class="k">START WITH</span> parent_id = :asm
+<span class="k">CONNECT BY PRIOR</span> part_id = parent_id;
+
+<span class="c">-- reverse, N-hops: which assemblies use a part?</span>
+<span class="k">SELECT</span> * <span class="k">FROM</span> <span class="k">GRAPH_TABLE</span> ( bom_graph
+  <span class="k">MATCH</span> (p) &lt;-[:USED_IN]-{1,} (a)
+  <span class="k">WHERE</span> p.part_id = :part
+  <span class="k">COLUMNS</span> (a.part_id) );
+<span class="c">-- re-parent = ONE edge update.</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">A path encodes <em>one</em> traversal direction and pays to maintain it. <strong>Split the concern:</strong> let the tree be edges (re-parent is a single row), and let genuine graph questions be graph queries — the prefix trick never could express them.</p>
+  </section>
+
+  <!-- ============ 18. OUTLIER ============ -->
+  <section class="slide" aria-label="Outlier pattern in financial services">
+    <div class="eyebrow"><span>Act 3 · Pattern 6 — Outlier</span><span class="clock">1:00 – 1:05</span></div>
+    <h2>Financial: the mega-advisor who breaks the model</h2>
+    <p class="lede">99% of advisors have a few hundred clients and embed fine. Then there's the institutional book with <strong>100,000 clients</strong>. The Outlier pattern adds a flag, an overflow collection, and an <code style="font-family:'IBM Plex Mono';font-size:12px;">if</code> in your application — <strong>the 16 MB limit leaking into your code</strong>.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — the model admits it breaks for the fat tail</p>
+<pre class="code hot-edge">const a = db.advisors.findOne({_id: id})
+let clients = a.clients
+<span class="k">if</span> (a.hasOverflow) {                 <span class="c">// the leak</span>
+  clients = clients.concat(
+    db.overflow.find({advisor: id})
+              .toArray())
+}
+<span class="c">// two code paths, two failure modes,</span>
+<span class="c">// forever — because one advisor is big.</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — the outlier is just more rows</p>
+<pre class="code cool-edge"><span class="c">-- advisor_clients partitioned/indexed by advisor</span>
+<span class="k">SELECT</span> client_id, market_value
+<span class="k">FROM</span>   advisor_clients
+<span class="k">WHERE</span>  advisor_id = :whale
+<span class="k">ORDER BY</span> market_value <span class="k">DESC</span>
+<span class="k">FETCH FIRST</span> 100 <span class="k">ROWS ONLY</span>;
+<span class="c">-- CBO adapts the plan for the whale vs the</span>
+<span class="c">-- typical advisor. One query. No branch.</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">There is no fat tail when the row is the unit, not the document. <strong>Embed the bounded common case, reference the overflow, and let a duality view re-join them</strong> — but on a relational base the outlier never needed special-casing at all. The optimizer plans for it.</p>
+  </section>
+
+  <!-- ============ 19. RAPID ROUND ============ -->
+  <section class="slide" aria-label="Rapid round of remaining patterns">
+    <div class="eyebrow"><span>Act 3 · The rest of the catalog</span><span class="clock">1:05 – 1:09</span></div>
+    <h2>The rest of the catalog, at speed</h2>
+    <p class="lede">The remaining patterns split cleanly into two piles: those that <strong>survive as optional conveniences</strong>, and those that become <strong>obsolete</strong> the moment the engine changes.</p>
+    <div class="body">
+      <div class="cards two" style="max-width:1060px;">
+        <div class="card cool-edge">
+          <span class="tag">Survive — now optional</span>
+          <p style="font-size:13.5px;"><b>Polymorphic</b> — heterogeneous rows coexist; a multivalue index spans them. <b>Attribute</b> — sparse key/value arrays get a real index instead of a scan. <b>Schema-Versioning</b> — <code style="font-family:'IBM Plex Mono';font-size:12px;">IS JSON</code> + a discriminator; a view papers over versions. <b>Document-Versioning</b> → <b>temporal validity / Flashback</b> gives you history for free.</p>
+        </div>
+        <div class="card hot-edge">
+          <span class="tag">Obsolete — artifacts of a limit</span>
+          <p style="font-size:13.5px;"><b>Approximation</b> — hand-rolled counters replaced by native <code style="font-family:'IBM Plex Mono';font-size:12px;">APPROX_COUNT_DISTINCT</code>. <b>Pre-Allocation</b> — padding a document so it won't move on disk was an <b>MMAPv1 artifact</b>; it vanished the moment the storage engine changed. The cleanest proof that patterns are bets against an engine, not laws of modeling.</p>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">Pre-Allocation is the tell. Nobody decided it was wrong — <strong>the engine changed and it evaporated.</strong> That's every pattern's eventual fate when the constraint it fought is lifted.</p>
+  </section>
+
+  <!-- ============ 20. HONESTY ANCHOR ============ -->
+  <section class="slide" aria-label="Where document still wins">
+    <div class="eyebrow"><span>Act 3 · The honest edge</span><span class="clock">1:09 – 1:13</span></div>
+    <h2>Where the document model still wins</h2>
+    <p class="lede">This is not "relational beats document." If it were a pitch, I'd skip this slide. <strong>Some workloads are genuinely document-shaped</strong> — and forcing a duality view on them would be the same mistake in the other direction.</p>
+    <div class="body">
+      <div class="cards two" style="max-width:1040px;">
+        <div class="card cool-edge">
+          <h3>The white-hot shopping cart</h3>
+          <p>Tiny, self-contained, written constantly, read by exactly one owner, no cross-entity query. Model it as a <b>single collection</b> keyed <code style="font-family:'IBM Plex Mono';font-size:12px;">cart#sku</code> — small inserts and deletes, no write amplification, no join anyone needs.</p>
+          <p><b>Do not</b> wrap it in a duality view. There's no canonical form fighting to get out.</p>
+        </div>
+        <div class="card">
+          <h3>The rule</h3>
+          <p>Reach for a projection when a fact is <b>shared</b>, <b>queried many ways</b>, or <b>changes under you</b>. Leave it embedded when it's private, uniform, and self-contained.</p>
+          <p style="margin-top:8px;font-family:'Bricolage Grotesque';font-weight:700;color:var(--ink);">Duality is a tool, not a hammer. A single collection is not a duality view.</p>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">The credibility of everything in this deck rests on this slide. <strong>The workload chooses the shape</strong> — and sometimes it chooses a plain document. The point was never one model; it was refusing to pay for a model the workload didn't ask for.</p>
+  </section>
+
+  <!-- ============ 21. BAKE-OFF ============ -->
+  <section class="slide" aria-label="The oracle-ai-dev bake-off process">
+    <div class="eyebrow"><span>Act 4 · How you know where the needle flips</span><span class="clock">1:13 – 1:17</span></div>
+    <h2>Don't argue the model — bake it off</h2>
+    <p class="lede">Every slide so far named a breakpoint. How do you find <em>yours</em>? You don't reason your way to it — you reason your way to the candidates, then <strong>measure</strong>. This is the <code style="font-family:'IBM Plex Mono';font-size:13px;">oracle-ai-dev</code> method.</p>
+    <div class="body">
+      <figure>
+        <svg viewBox="0 0 960 210" role="img" aria-label="Bake-off pipeline: reproduce schema, generate data at real cardinality, build candidate models D0 to D4, measure read and write, find the breakpoint">
+          <defs>
+            <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <g font-family="Bricolage Grotesque" font-weight="700" font-size="13" fill="var(--ink)" text-anchor="middle">
+            <rect x="24" y="70" width="150" height="60" rx="9" fill="var(--panel)" stroke="var(--hairline)"/>
+            <text x="99" y="96">Reproduce</text><text x="99" y="114" font-family="Public Sans" font-weight="400" font-size="11.5" fill="var(--muted)">the real schema</text>
+            <rect x="214" y="70" width="150" height="60" rx="9" fill="var(--panel)" stroke="var(--hairline)"/>
+            <text x="289" y="96">Generate data</text><text x="289" y="114" font-family="Public Sans" font-weight="400" font-size="11.5" fill="var(--muted)">at true cardinality</text>
+            <rect x="404" y="70" width="150" height="60" rx="9" fill="var(--cool-soft)" stroke="var(--cool)" stroke-width="1.6"/>
+            <text x="479" y="96">Build D0–D4</text><text x="479" y="114" font-family="Public Sans" font-weight="400" font-size="11.5" fill="var(--muted)">candidate shapes</text>
+            <rect x="594" y="70" width="150" height="60" rx="9" fill="var(--cool-soft)" stroke="var(--cool)" stroke-width="1.6"/>
+            <text x="669" y="90">Measure</text><text x="669" y="108" font-family="Public Sans" font-weight="400" font-size="11.5" fill="var(--muted)">read AND write</text><text x="669" y="123" font-family="Public Sans" font-weight="400" font-size="11.5" fill="var(--muted)">cost</text>
+            <rect x="784" y="70" width="152" height="60" rx="9" fill="var(--panel)" stroke="var(--cool)" stroke-width="1.6"/>
+            <text x="860" y="90" fill="var(--cool)">Breakpoint</text><text x="860" y="108" font-family="Public Sans" font-weight="400" font-size="11.5" fill="var(--muted)">where the winner</text><text x="860" y="123" font-family="Public Sans" font-weight="400" font-size="11.5" fill="var(--muted)">flips</text>
+          </g>
+          <g stroke="currentColor" stroke-width="1.5" fill="none" color="var(--faint)">
+            <line x1="174" y1="100" x2="210" y2="100" marker-end="url(#arr4)"/>
+            <line x1="364" y1="100" x2="400" y2="100" marker-end="url(#arr4)"/>
+            <line x1="554" y1="100" x2="590" y2="100" marker-end="url(#arr4)"/>
+            <line x1="744" y1="100" x2="780" y2="100" marker-end="url(#arr4)"/>
+          </g>
+        </svg>
+        <figcaption>D0 = as-is · D1 = normalized · D2 = embedded/document · D3 = hybrid (relational + JSON columns) · D4 = projected via duality. Same data, same engine, same queries — only the shape varies.</figcaption>
+      </figure>
+      <div class="card" style="max-width:1040px;">
+        <p style="font-size:14px;"><b>Two rules that catch every bad instinct:</b> &nbsp;①&nbsp;<b>Writes are access patterns too</b> — a shape that wins reads and loses writes hasn't won. &nbsp;②&nbsp;<b>A win at the wrong scale is not a win</b> — measure at production cardinality or you're tuning a toy.</p>
+      </div>
+    </div>
+    <p class="takeaway"><strong>Reason to the candidates; measure to the decision.</strong> The bake-off is how "I think we should embed this" becomes "at 40M rows and this write rate, D3 wins by 6×, and here's the crossover."</p>
+  </section>
+
+  <!-- ============ 22. TWO PROOFS ============ -->
+  <section class="slide" aria-label="Two anonymized engagement proofs">
+    <div class="eyebrow"><span>Act 4 · How you know where the needle flips</span><span class="clock">1:17 – 1:20</span></div>
+    <h2>Two engagements where the room's taste was wrong</h2>
+    <p class="lede">Both anonymized, both measured at production cardinality. In both, the model people <em>argued</em> for lost to the model the numbers picked.</p>
+    <div class="body">
+      <div class="chart">
+        <div class="legend"><span><i class="swatch base"></i> baseline / argued-for</span><span><i class="swatch opt"></i> measured winner</span></div>
+        <div class="cgroup">
+          <div class="glabel">Global bank<small>heavy aggregation query</small></div>
+          <div class="bar-track"><div class="bar base" style="width:100%"></div></div>
+          <div class="bar-val">30.0s</div>
+          <div class="delta">28×</div>
+          <div class="bar-track"><div class="bar opt" style="width:3.5%"></div></div>
+          <div class="bar-val">1.0s &nbsp;<span class="cool">(rewrite alone)</span></div>
+        </div>
+        <div class="cgroup">
+          <div class="glabel">Global bank<small>elected hybrid model (rel + JSON)</small></div>
+          <div class="bar-track"><div class="bar base" style="width:100%"></div></div>
+          <div class="bar-val">30.0s</div>
+          <div class="delta">1667×</div>
+          <div class="bar-track"><div class="bar opt" style="width:1.5%"></div></div>
+          <div class="bar-val">18ms</div>
+        </div>
+        <div class="cgroup">
+          <div class="glabel">Wealth-mgmt platform<small>40 queries, average</small></div>
+          <div class="bar-track"><div class="bar base" style="width:100%"></div></div>
+          <div class="bar-val">0.829s</div>
+          <div class="delta">−81%</div>
+          <div class="bar-track"><div class="bar opt" style="width:19%"></div></div>
+          <div class="bar-val">0.159s &nbsp;<span class="cool">(40/40 faster)</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">Global bank: the biggest win — 28× — needed <strong>no new model at all</strong>, just a rewrite; the elected shape was a <b>hybrid</b>, not the pure document the room wanted. Wealth-mgmt: a query that <b>timed out</b> came back at 0.39s. <strong>The room's taste was wrong twice. The measurement wasn't.</strong></p>
+  </section>
+
+  <!-- ============ 23. OTHER HALF OF 90/10 ============ -->
+  <section class="slide" aria-label="The other half of ninety ten">
+    <div class="eyebrow"><span>Act 4 · How you know where the needle flips</span><span class="clock">1:20 – 1:23</span></div>
+    <h2>And sometimes the document shape wins — on the same engine</h2>
+    <p class="lede">Measurement cuts both ways. The honest result isn't "relational always wins" — it's "<strong>shape per pattern, one engine</strong>." Here's the case that proves the method isn't rigged.</p>
+    <div class="body">
+      <div class="cards two" style="max-width:1040px;">
+        <div class="card cool-edge">
+          <h3>Entitlements: array-containment</h3>
+          <p>"Which resources can this principal touch?" is an <b>array-containment</b> query. Modeled across a 27-table normalized schema it's a join thicket. Modeled as a document with an indexed array, on the <b>same converged engine</b>, it ran <b class="cool">~9–15× faster</b>.</p>
+        </div>
+        <div class="card">
+          <h3>The 90/10, honestly</h3>
+          <p>~90% of queries are happy on a document shape; ~10% desperately need joins, aggregation, or graph. The win isn't picking a side — it's <b>serving both shapes from one source of truth</b>, each query on the shape that suits it.</p>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway"><strong>The converged argument is not "always relational."</strong> It's that one engine can hold the canonical form and project whatever shape each access pattern wants — and the measurement, not the meeting, decides which.</p>
+  </section>
+
+  <!-- ============ 24. FIVE TESTS ============ -->
+  <section class="slide" aria-label="Five tests for a converged engine">
+    <div class="eyebrow"><span>Act 5 · Close</span><span class="clock">1:23 – 1:26</span></div>
+    <h2>What "converged" has to mean</h2>
+    <p class="lede">"Multi-model" is a marketing word — most products meaning several engines behind one logo. Converged is a physical claim. Five tests separate the two:</p>
+    <div class="body">
+      <div class="cards three" style="max-width:1060px;">
+        <div class="card cool-edge"><h3>One transaction boundary</h3><p>A single ACID commit spans document, relational, graph, and vector — not a saga across services.</p></div>
+        <div class="card cool-edge"><h3>One optimizer</h3><p>A cost-based optimizer that plans <em>across</em> models, not a separate planner per store.</p></div>
+        <div class="card cool-edge"><h3>One consistency model</h3><p>No eventual gap between the vector index and the row it describes.</p></div>
+        <div class="card cool-edge"><h3>One governance domain</h3><p>One auth model, one audit trail, one patch cycle, one attack surface.</p></div>
+        <div class="card cool-edge"><h3>Shared access surfaces</h3><p>SQL, SQL/JSON, SQL/PGQ — and the Mongo wire protocol — over the <em>same</em> rows.</p></div>
+        <div class="card"><h3>The test</h3><p>If any answer is "that's a different service," it's polyglot with a shared bill — not converged.</p></div>
+      </div>
+    </div>
+    <p class="takeaway">Every softening in this deck depended on these five holding at once. <strong>Remove any one and you're back to integration tax and consistency gaps</strong> — the problems the patterns were coping with in the first place.</p>
+  </section>
+
+  <!-- ============ 25. FIVE QUESTIONS ============ -->
+  <section class="slide" aria-label="Five questions to evaluate any architecture">
+    <div class="eyebrow"><span>Act 5 · Close</span><span class="clock">1:26 – 1:28</span></div>
+    <h2>Five questions for any architecture — including yours</h2>
+    <p class="lede">Take these back to your own systems. They work on any stack, any vendor. If you can't answer them, that's the finding.</p>
+    <div class="body">
+      <ol class="steps" style="max-width:940px;margin:0 auto;">
+        <li><b>Where is your canonical form?</b> If the answer is "in five places," you have no canonical form — you have five copies negotiating.</li>
+        <li><b>What projected shapes do your consumers actually need?</b> Document, graph, vector, flat — list them per consumer.</li>
+        <li><b>What access dimensions?</b> Point read, range, aggregate, traverse, similarity — which ones, how often?</li>
+        <li><b>What's your projection latency?</b> Synchronous = zero lag. Async CDC = seconds to minutes of disagreement. Which can your use case tolerate?</li>
+        <li><b>What consistency does your <em>AI</em> need?</b> Eventual consistency is a hallucination-risk setting. Is that the setting you meant to choose?</li>
+      </ol>
+    </div>
+    <p class="takeaway">Question 4 is the quiet one. <strong>Most "converged" claims fail on projection latency</strong> — the shapes exist, but they're minutes stale. Sync projection is the difference between a view and a copy.</p>
+  </section>
+
+  <!-- ============ 26. CTA ============ -->
+  <section class="slide" aria-label="Call to action, the design review">
+    <div class="eyebrow"><span>Act 5 · Close</span><span class="clock">1:28 – 1:30</span></div>
+    <h2>Bring your slowest query. We'll measure it.</h2>
+    <p class="lede">You don't have to believe any number in this deck. The whole method is built to be <strong>reproduced</strong> — so let's reproduce it on <em>your</em> workload.</p>
+    <div class="body">
+      <div class="cards two" style="max-width:1040px;">
+        <div class="card cool-edge">
+          <h3>The design review</h3>
+          <p>Bring a schema and your five slowest queries. We reproduce the schema, generate data at your cardinality, build the candidate shapes, and let the numbers pick the model — the bake-off, on your data.</p>
+        </div>
+        <div class="card">
+          <h3>What comes next</h3>
+          <p><b>Workshop 3 — the lab:</b> "one restaurant, every model," hands-on, where you build the projections yourself. <b>Companion repo:</b> every pattern in this deck as runnable, validated SQL on 26ai Free.</p>
+        </div>
+      </div>
+      <p class="lede" style="max-width:1040px;margin-top:4px;"><strong>Model the domain, not the engine. Project the access. Measure the tradeoff — don't argue it.</strong></p>
+    </div>
+    <p class="takeaway mono" style="font-size:13px;">Companion repo: converged-modeling-patterns · runnable on Oracle AI Database 26ai Free · every .sql validated on a live container</p>
+  </section>
+
+  <div class="progress" id="progress"></div>
+  <div class="chrome">
+    <span class="brand">CONVERGED DATA MODELING · WORKSHOP 1</span>
+    <span class="keyhint">← → to navigate · Home/End to jump · N for notes</span>
+    <nav class="dots" id="dots" aria-label="Slides"></nav>
+    <span class="counter" id="counter">1 / 27</span>
+    <div class="navbtns">
+      <button id="notesToggle" aria-label="Speaker notes" title="Speaker Notes (N)">📝 Notes</button>
+      <button id="prev" aria-label="Previous slide">‹ Prev</button>
+      <button id="next" aria-label="Next slide">Next ›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const dots = document.getElementById('dots');
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  let cur = 0;
+
+  slides.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.setAttribute('aria-label', 'Slide ' + (i + 1) + ': ' + (s.getAttribute('aria-label') || ''));
+    b.addEventListener('click', () => go(i));
+    dots.appendChild(b);
+  });
+  const dotEls = Array.from(dots.children);
+
+  function go(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, j) => s.classList.toggle('active', j === cur));
+    dotEls.forEach((d, j) => d.classList.toggle('on', j === cur));
+    counter.textContent = (cur + 1) + ' / ' + slides.length;
+    progress.style.width = ((cur + 1) / slides.length * 100) + '%';
+    if (history.replaceState) history.replaceState(null, '', '#' + (cur + 1));
+    slides[cur].scrollTop = 0;
+  }
+
+  document.getElementById('prev').addEventListener('click', () => go(cur - 1));
+  document.getElementById('next').addEventListener('click', () => go(cur + 1));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(cur + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(cur - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); go(0); }
+    else if (e.key === 'End') { e.preventDefault(); go(slides.length - 1); }
+    else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); toggleNotes(); }
+  });
+
+  // ─── Speaker Notes ───────────────────────────────────────────────
+  const speakerNotes = {
+    0: "<strong>Open with the thesis, not the agenda — the title is the whole argument in five words.</strong><br><br>▸ <strong>Say it plainly:</strong> for twenty years we've modeled to the engine — what MongoDB could do, what the RDBMS made expensive — instead of to the domain. This session flips that.<br>▸ <strong>Set expectations:</strong> this is a modeling lecture, not a product demo. We'll walk the patterns you already use, find the physics under each, and see where a converged engine changes the math.<br>▸ <strong>The four stats frame the arc</strong> — three knobs, twelve patterns, one engine, ninety minutes. The lab (Workshop 3) is where they build it; today is where they understand it.<br><br><em>Land: by the end you'll have a vocabulary and a test you can take back to any architecture — including the ones you already run.</em>",
+    1: "<strong>Kill the false binary before anything else — it's the assumption every bad decision downstream rests on.</strong><br><br>▸ <strong>The old frame (hot card):</strong> a database per workload, glued together. Every pattern in the document catalog is a coping strategy for one engine's limits — and every glue joint is integration tax plus a consistency gap.<br>▸ <strong>The new frame (cool card):</strong> model once, project many. The pattern doesn't vanish — the <em>cost of choosing it</em> does, because the engine maintains every shape from one source.<br>▸ <strong>Walk the four acts</strong> quickly so they have the map: why → physics → patterns → measurement.<br><br><em>Land: the rule we're testing all day — the workload chooses the shape; you measure, you don't guess. Everything else is in service of that sentence.</em>",
+    2: "<strong>This is a reused slide from 'From RDBMS to NoSQL' — but reframed. The point isn't nostalgia, it's that every era's model was a correct bet against that era's bottleneck.</strong><br><br>▸ <strong>Walk left to right:</strong> IMS optimized for scarce storage and pointer navigation. Codd traded storage for correctness — normalize, join at read. NoSQL traded correctness for scale-out — denormalize, avoid joins.<br>▸ <strong>The key move:</strong> each era solved the last era's pain and inherited a new one. None was wrong; each was a bet.<br>▸ <strong>Set the hook for the whole pattern walk:</strong> the document patterns we use every day were invented in that third box — bets against a distributed engine that couldn't join, couldn't transact across shards, and re-serialized a whole record to touch one field.<br><br><em>Land: hold that thought — because the fourth box lifts exactly those constraints, which is what makes the patterns optional.</em>",
+    3: "<strong>Explain WHY we denormalize — most people do it by reflex without knowing the economics changed under them.</strong><br><br>▸ <strong>Then:</strong> storage was dear, so you stored each fact once and paid joins to reassemble. Codd's normal forms are, at heart, a deduplication discipline.<br>▸ <strong>Now:</strong> storage is nearly free; the dear resources are CPU, network hops, and human milliseconds. So you pre-shape for the read — denormalize at read time.<br>▸ <strong>The move the industry missed (cool card):</strong> the right response to cheap storage isn't 'throw away the normalized truth' — it's 'keep it AND spend cheap storage to materialize the shapes consumers want.' Denormalization becomes a projection, not a fork.<br><br><em>Land: the mistake was never denormalizing — it was making it a one-way hand-maintained copy instead of an engine-maintained projection. That distinction is the entire deck.</em>",
+    4: "<strong>Reclaim Codd — he already drew this map, and the duality view is just materializing what he defined.</strong><br><br>▸ <strong>Center of the diagram:</strong> normalized relational is the canonical form — the minimal, non-redundant statement of the facts.<br>▸ <strong>The arrows:</strong> document, graph, vector, relational are all projections — views over the canonical form. Codd's relational algebra literally defined projection; we just stopped materializing it where it hurt.<br>▸ <strong>The warning (caption):</strong> Codd also warned against the alternative — scattering the same facts across independent stores each with its own truth. That's polyglot persistence, named before it had a marketing category.<br><br><em>Land: model the domain in canonical form; project the access. The document, the graph, the vector index — all projections. One truth, many shapes.</em>",
+    5: "<strong>This is where 'purpose-built' gets its comeuppance — and where AI turns a tolerable flaw into an intolerable one.</strong><br><br>▸ <strong>Three costs (hot cards):</strong> integration tax (serialize + hop + auth on every cross-store call), the consistency gap (stores converge eventually, disagree in between), and the AI failure mode (stale + conflicting facts → confident hallucination → bad action).<br>▸ <strong>State Vector Dissonance (bottom card):</strong> the vector index reflects the last embed job; the tables reflect this transaction. RAG retrieves from the first and reasons as if it were the second. The wider the gap, the more confident the wrong answer.<br>▸ <strong>The turn:</strong> a human reading a slightly stale answer shrugs. An agent taking an action on it creates a liability.<br><br><em>Land: AI didn't create this flaw — it removed our tolerance for it. Immediate consistency stops being a nicety and becomes a correctness requirement.</em>",
+    6: "<strong>Give them the five words — this vocabulary is load-bearing for the whole pattern walk, so make them stick.</strong><br><br>▸ <strong>Read the table as a sentence:</strong> the Canonical Form (your base tables) is projected into a Projected Shape (a document, a graph) via a Projection (a duality view, an MV, an index), reached through an Access Surface (SQL, SQL/JSON, SQL/PGQ, Mongo wire), expressing an Access Dimension (point read, range, aggregate, traverse, similarity).<br>▸ <strong>Emphasize:</strong> every modeling decision in the next hour has a precise home in one of these five terms. No hand-waving.<br><br><em>Land: 'Model once. Project as documents, graphs, time series, or relations. Serve every consumer from one source of truth.' That's the whole theory — the rest is physics and tradeoffs. (This is the money quote from the RDBMS-to-NoSQL deck; say it verbatim.)</em>",
+    7: "<strong>Prove the theory pays off — this single query is the artifact that makes 'model once, project many' concrete.</strong><br><br>▸ <strong>Walk the query by color:</strong> JSON_VALUE pulls the tier from a JSON projection; VECTOR_DISTANCE does similarity; GRAPH_TABLE traverses ownership 1-to-3 hops; the FETCH FIRST is plain relational. Four access dimensions in one statement.<br>▸ <strong>The claim that matters:</strong> one transaction, one consistency model, one security boundary. No hops between stores, no copies, no eventual anything.<br>▸ <strong>Contrast:</strong> in polyglot this is four services, four round trips, four consistency models, and glue code that owns the reconciliation nobody tested.<br><br><em>Land: this is the standard every pattern in the next hour is measured against — if converged can do this, the patterns that exist to avoid joins and cross-store reads are optional.</em>",
+    8: "<strong>This is the hinge of the whole deck — everything before was 'why', everything after is these three knobs.</strong><br><br>▸ <strong>Knob 1 — diversity:</strong> how many distinct access patterns hit this data? High diversity wants projections (one shape can't serve all).<br>▸ <strong>Knob 2 — read/write ratio:</strong> read-heavy justifies precomputation; write-heavy punishes it.<br>▸ <strong>Knob 3 — update % AND locality (the red dial):</strong> not just how often you write, but WHERE the write lands inside the shape. This is write amplification, and it's the one document modeling under-weights.<br>▸ <strong>Point at the caption:</strong> knob 3 can veto knobs 1 and 2 — a read-heavy, high-diversity workload still can't embed if the embedded field is hot and mutable.<br><br><em>Land: set these three and the model is half-chosen. Every pattern coming up is a response to a particular setting of knob 3.</em>",
+    9: "<strong>This is the physics slide — slow down here. If they get write amplification, every pattern afterward explains itself.</strong><br><br>▸ <strong>Walk the diagram:</strong> update ONE field in a large document, and a copy-on-write engine re-serializes the ENTIRE leaf page. The write cost scales with document SIZE, not with the size of your change.<br>▸ <strong>Make it visceral:</strong> a 2 MB document costs ~2 MB of write to change one byte. Every time. Plus a document-level lock, plus the march toward the 16 MB cap.<br>▸ <strong>The reveal:</strong> Bucket, Computed, Subset, Pre-Allocation — all of them exist to keep documents small and writes cheap. They're write-amplification management dressed up as design patterns.<br><br><em>Land: the bigger and hotter the document, the more every write costs. Remember this shape — you'll see it under all six patterns.</em>",
+    10: "<strong>Reduce the whole 'should I precompute?' debate to one inequality — this is the tool they'll actually use in design reviews.</strong><br><br>▸ <strong>Read it aloud:</strong> maintain a precomputed shape only if read_freq × read_cost > write_freq × maintenance_cost. What you save on reads must beat what you pay on writes.<br>▸ <strong>What moves the right side up (hot card):</strong> more writes, fatter docs, worse write amplification — e.g. a subset trimmed on every write to serve a read that rarely happens. That's the inequality flipping.<br>▸ <strong>What a CBO does (cool card):</strong> it lowers read_cost — index-only Top-N, hash join, parallel scan — so the inequality holds at a shape you never had to hand-maintain.<br><br><em>Land: a better optimizer moves the breakpoint. Patterns that MUST be precomputed on a document engine can be queried live on a converged one, because the read side just got cheaper. That sentence sets up all of Act 3.</em>",
+    11: "<strong>The catalog gave you two answers to every tension; converged adds a third. This is the 'aha' before the pattern walk.</strong><br><br>▸ <strong>Embed (hot):</strong> fast reads, but you copy the fact — write amplification and update anomalies. Great until knob 3 turns.<br>▸ <strong>Reference (hot):</strong> no duplication, but reads need $lookup or a second round trip — and the document engine has no optimizer to make that join cheap.<br>▸ <strong>Project it (cool — the new one):</strong> store the fact once in canonical form; a duality view projects it into document shape, live, engine-maintained. Read shape without write penalty.<br>▸ <strong>The reframe:</strong> embed vs reference is no longer a permanent architectural fork — it's a projection choice you can change without a migration.<br><br><em>Land: same three knobs, but the needle you couldn't move before is now a setting. Duality doesn't change the knobs — it changes how they get set. Now let's walk six patterns and watch it happen.</em>",
+    12: "<strong>Set the rhythm before the walk so they know what to listen for on each of the six slides.</strong><br><br>▸ <strong>Four beats every time:</strong> the use case (real industry, real access pattern) → the hard edge (the knob-3 setting where it hurts) → where the needle flips (the cardinality/write rate) → the converged softening (the mechanism, with live SQL).<br>▸ <strong>The framing question:</strong> we're never asking 'is this pattern good?' We're asking 'at what point does its tradeoff flip, and what does converged do at that point?'<br>▸ <strong>Point at the table:</strong> six patterns, six industries, six mechanisms — Extended Reference/wealth, Computed/telecom, Bucket/IoT, Subset/insurance, Tree/BOM, Outlier/financial.<br><br><em>Land: listen for the refrain — the pattern was a correct bet against a limited engine; remove the limit and the bet, and its maintenance cost, is optional.</em>",
+    13: "<strong>Pattern 1, Extended Reference — the cleanest illustration of 'project the mutable, snapshot the immutable.'</strong><br><br>▸ <strong>The setup:</strong> to dodge a lookup, the advisor's contact card is embedded in every client and account doc. Reads fly. Then the advisor moves offices.<br>▸ <strong>The hard edge (hot SQL):</strong> now you updateMany across hundreds of thousands of copies, in every collection that embedded the card. Miss one and you've got an update anomaly — and the LLM will happily read the stale one.<br>▸ <strong>The softening (cool SQL):</strong> a JSON Relational Duality View. The advisor is normalized once; the nested advisor block is @noinsert/@nodelete — a live reference. Advisor moves in ONE row; every projected client doc reflects it instantly.<br>▸ <strong>The nuance:</strong> snapshot the immutable (trade price at execution — you WANT that frozen); project the mutable (current office).<br><br><em>Land: the needle flips the moment the 'reference' field can change. One fact, one place, zero fan-out.</em>",
+    14: "<strong>Pattern 2, Computed — the hot-document write storm, and the index-only Top-N is the crowd-pleaser here.</strong><br><br>▸ <strong>The setup:</strong> each subscriber doc carries a running cycle-usage rollup so the app never re-aggregates. But every CDR now rewrites the parent — a write storm on your hottest documents.<br>▸ <strong>The document coping strategy (hot SQL):</strong> counter-sharding — split the counter into N shard-docs to spread the heat, then fan-in on read. You traded a write problem for a read problem.<br>▸ <strong>The softening (cool SQL):</strong> a materialized view REFRESH FAST ON COMMIT — 'Computed', but transactional and current, maintained by the engine, not the app.<br>▸ <strong>The value-add (bottom card) — say the number:</strong> 'top 20 subscribers by usage' is agony in a document engine. A composite index on (cycle_bytes DESC, subscriber_id) makes it an index-only scan: 60s → 500ms, ACID, nothing to maintain.<br><br><em>Land: move the aggregation into an engine-maintained projection and the write storm disappears — the counter is current without ever touching a hot document.</em>",
+    15: "<strong>Pattern 3, Bucket — call it 'the canonical write-amplification pattern' explicitly; and $sql-in-pipeline is the value-add they haven't seen.</strong><br><br>▸ <strong>The setup:</strong> sensor readings bucketed per machine per hour to keep doc counts down. Every reading $push-es and re-serializes the bucket; hot sensors march it toward 16 MB.<br>▸ <strong>The hard edge (hot SQL):</strong> the push re-serializes the whole growing bucket, and analytics can't scale past a single bucket.<br>▸ <strong>The softening (cool SQL):</strong> a RANGE-partitioned relational time-series. Append-only inserts have FLAT write cost; the rollup is a GROUP BY over a partition range, parallelized by the optimizer with a hint, not by you. No cap.<br>▸ <strong>The value-add (bottom card):</strong> a document team keeps its aggregation pipeline and drops full SQL into one $sql stage — parallel scan, windows, joins. The heavy analytic that TIMED OUT as a pipeline now completes, no 16 MB/100 MB pipeline caps. This is Rick's headline capability — dwell on it.<br><br><em>Land: the needle flips on the hottest sensors — exactly the ones you care about. Append-only writes stay flat; the optimizer does the parallelism.</em>",
+    16: "<strong>Pattern 4, Subset — the sharpest 'you're paying the wrong side' story. Keep it tight.</strong><br><br>▸ <strong>The setup:</strong> a policy doc keeps the 10 most recent claims inline for a fast summary; cold history lives elsewhere. Claims arrive constantly.<br>▸ <strong>The hard edge (hot SQL):</strong> $push with $sort + $slice:10 on EVERY write — write amplification on the write path to optimize a read path that's mostly idle.<br>▸ <strong>The softening (cool SQL):</strong> stop maintaining it. A composite index (policy_id, event_ts DESC) makes ORDER BY event_ts DESC FETCH FIRST 10 an index-only seek + 10-row scan. A duality view reunites hot + cold at read time.<br><br><em>Land: Subset is a bet that reads dwarf writes. When they don't — and here they don't — you're paying the write side to optimize a read that hardly fires. The pre-sorted index gives the same instant Top-N at zero write cost.</em>",
+    17: "<strong>Pattern 5, Tree — two failures in one: re-parent write amplification AND a question the model can't express. Make both.</strong><br><br>▸ <strong>The setup:</strong> a BOM as a materialized path makes 'everything under this assembly' a fast prefix scan.<br>▸ <strong>Hard edge #1 (hot SQL):</strong> re-parent a subassembly and you rewrite the path of EVERY descendant — write amp proportional to subtree size.<br>▸ <strong>Hard edge #2:</strong> 'which assemblies USE part X?' is the reverse direction, N hops — a prefix simply cannot express it. You'd denormalize a second structure.<br>▸ <strong>The softening (cool SQL):</strong> CONNECT BY for the explosion; GRAPH_TABLE with a {1,} quantified pattern for the reverse traversal. And re-parent becomes ONE edge update.<br><br><em>Land: a path encodes one traversal direction and pays to maintain it. Split the concern — tree as edges (re-parent = one row), genuine graph questions as graph queries. The prefix trick never could answer the second question at all.</em>",
+    18: "<strong>Pattern 6, Outlier — the punchline is 'the 16 MB limit leaking into your application code.' That's the quotable line.</strong><br><br>▸ <strong>The setup:</strong> 99% of advisors embed fine; the institutional book has 100,000 clients and blows the document.<br>▸ <strong>The hard edge (hot JS):</strong> the Outlier pattern adds a hasOverflow flag, an overflow collection, and an if-branch in your app. Two code paths, two failure modes, forever — because one advisor is big. That's the doc-size limit leaking into code.<br>▸ <strong>The softening (cool SQL):</strong> on a relational base the outlier is just more rows. One query, ORDER BY market_value DESC FETCH FIRST 100, partitioned/indexed by advisor. The CBO adapts the plan for the whale vs the typical advisor — no branch.<br>▸ <strong>The hybrid option:</strong> embed the bounded common case, reference the overflow, let a duality view re-join — but note that on relational the outlier never needed special-casing.<br><br><em>Land: there is no fat tail when the row is the unit, not the document. The optimizer plans for it.</em>",
+    19: "<strong>Rapid round — move fast, this is the 'and the rest fall into two piles' slide. Land Pre-Allocation as the mic-drop.</strong><br><br>▸ <strong>Survive as optional (cool card):</strong> Polymorphic (multivalue index spans heterogeneous rows), Attribute (real index on sparse key/value instead of a scan), Schema-Versioning (IS JSON + discriminator, a view papers over versions), Document-Versioning → temporal validity / Flashback gives history for free.<br>▸ <strong>Obsolete (hot card):</strong> Approximation → native APPROX_COUNT_DISTINCT; Pre-Allocation → an MMAPv1 artifact, padding a doc so it wouldn't move on disk.<br>▸ <strong>The mic-drop:</strong> nobody DECIDED Pre-Allocation was wrong. The storage engine changed and it evaporated. It's the cleanest proof that patterns are bets against an engine, not laws of modeling.<br><br><em>Land: that's every pattern's eventual fate when the constraint it fought is lifted — which is exactly what a converged engine does to the other five.</em>",
+    20: "<strong>The honesty anchor — this slide buys back all your credibility. Do NOT rush it or soften it.</strong><br><br>▸ <strong>Say it directly:</strong> this is not 'relational beats document.' If it were a pitch I'd skip this slide. Some workloads are genuinely document-shaped.<br>▸ <strong>The example (cool card):</strong> the white-hot shopping cart — tiny, self-contained, written constantly, read by one owner, no cross-entity query. Model it as a single collection keyed cart#sku. Small inserts/deletes, no write amplification, no join anyone needs. Do NOT wrap it in a duality view — there's no canonical form fighting to get out.<br>▸ <strong>The rule (right card):</strong> reach for a projection when a fact is shared, queried many ways, or changes under you. Leave it embedded when it's private, uniform, self-contained.<br><br><em>Land: 'Duality is a tool, not a hammer. A single collection is not a duality view.' The workload chooses the shape — and sometimes it chooses a plain document. The point was never one model; it was refusing to pay for a model the workload didn't ask for.</em>",
+    21: "<strong>Act 4 opens — this is the method that makes everything before it defensible. 'Reason to the candidates, measure to the decision.'</strong><br><br>▸ <strong>Walk the pipeline:</strong> reproduce the real schema → generate data at TRUE cardinality → build candidates D0–D4 → measure read AND write cost → find the breakpoint where the winner flips.<br>▸ <strong>Name the candidates (caption):</strong> D0 as-is, D1 normalized, D2 embedded/document, D3 hybrid (relational + JSON columns), D4 projected via duality. Same data, same engine, same queries — only the shape varies.<br>▸ <strong>Two rules that catch every bad instinct (card):</strong> ① writes are access patterns too — a shape that wins reads and loses writes hasn't won; ② a win at the wrong scale is not a win — measure at production cardinality or you're tuning a toy.<br>▸ <strong>This is the oracle-ai-dev skill</strong> — the plugin automates exactly this loop.<br><br><em>Land: the bake-off turns 'I think we should embed this' into 'at 40M rows and this write rate, D3 wins by 6×, and here's the crossover.' Opinion becomes measurement.</em>",
+    22: "<strong>Two real, anonymized proofs. The whole point of this slide is 'the room's taste was wrong, the measurement wasn't.' Say that line.</strong><br><br>▸ <strong>Global bank, bar 1:</strong> the biggest single win — 28× — needed NO new model at all. A query rewrite took 30s → 1s. Sometimes the model isn't the problem; the query is.<br>▸ <strong>Global bank, bar 2:</strong> the elected model was a HYBRID — relational tables carrying JSON columns — not the pure document the room argued for. 30s → 18ms.<br>▸ <strong>Wealth-mgmt, bar 3:</strong> 40 queries, average −81% (0.829s → 0.159s), 40/40 faster, zero regressions. A query that TIMED OUT under the original pattern came back at 0.39s.<br>▸ <strong>The through-line:</strong> in both engagements the model people advocated for lost to the model the numbers picked.<br><br><em>Land: the room's taste was wrong twice; the measurement wasn't. This is why we bake off instead of debate.</em>",
+    23: "<strong>Prove the method isn't rigged toward relational — this is the slide that makes an honest audience trust you.</strong><br><br>▸ <strong>The entitlements case (cool card):</strong> 'which resources can this principal touch?' is array-containment. Across a 27-table normalized schema it's a join thicket. As a document with an indexed array, on the SAME converged engine, it ran ~9–15× faster.<br>▸ <strong>The 90/10, honestly (right card):</strong> ~90% of queries are happy on a document shape; ~10% desperately need joins, aggregation, or graph. The win isn't picking a side — it's serving BOTH shapes from one source of truth, each query on the shape that suits it.<br><br><em>Land: the converged argument is not 'always relational.' It's that one engine can hold the canonical form and project whatever shape each access pattern wants — and measurement, not the meeting, decides which. That's the credibility close for Act 4.</em>",
+    24: "<strong>Now define the term precisely — 'multi-model' is marketing, 'converged' is a physical claim. Five tests.</strong><br><br>▸ <strong>Read the five:</strong> one transaction boundary (single ACID commit across models, not a saga); one optimizer (plans across models, not a planner per store); one consistency model (no eventual gap between the vector index and its row); one governance domain (one auth, audit, patch cycle, attack surface); shared access surfaces (SQL, SQL/JSON, SQL/PGQ, Mongo wire — over the SAME rows).<br>▸ <strong>The test (last card):</strong> if any answer is 'that's a different service,' it's polyglot with a shared bill — not converged.<br><br><em>Land: every softening in this deck depended on all five holding at once. Remove any one and you're back to integration tax and consistency gaps — the very problems the patterns were coping with. This is how they audit a vendor's 'converged' claim.</em>",
+    25: "<strong>Hand them the takeaway tool — five questions that work on ANY architecture, including their own. This is what they carry out of the room.</strong><br><br>▸ <strong>Walk them:</strong> (1) where's your canonical form? 'In five places' means you have none. (2) what projected shapes do consumers need? (3) what access dimensions, how often? (4) what's your projection latency — sync (zero lag) vs async CDC (seconds-to-minutes of disagreement)? (5) what consistency does your AI need — eventual is a hallucination-risk setting.<br>▸ <strong>Flag the quiet one:</strong> question 4. Most 'converged' claims fail on projection latency — the shapes exist but they're minutes stale. Sync projection is the difference between a view and a copy.<br><br><em>Land: if they can't answer these about their own stack, that's the finding — and it's the perfect setup for the design review on the next slide.</em>",
+    26: "<strong>Close on the invitation, not a summary. The whole method was built to be reproduced — so offer to reproduce it on THEIR data.</strong><br><br>▸ <strong>The ask (cool card):</strong> bring a schema and your five slowest queries. We reproduce the schema, generate data at your cardinality, build the candidate shapes, and let the numbers pick the model — the bake-off, on your data.<br>▸ <strong>What's next (right card):</strong> Workshop 3 is the hands-on lab ('one restaurant, every model') where they build the projections themselves; the companion repo has every pattern from today as runnable, validated SQL on 26ai Free.<br>▸ <strong>The three-line creed:</strong> model the domain, not the engine. Project the access. Measure the tradeoff — don't argue it.<br><br><em>Land: you don't have to believe a single number in this deck — the method is built to be reproduced. Let's reproduce it on your workload. That's the door into the next engagement.</em>",
+  };
+
+  // ─── Speaker Notes Popup Window ──────────────────────────────────
+  let notesWindow = null;
+
+  function getNotesHTML(slideIndex) {
+    const slideEl = slides[slideIndex];
+    const title = (slideEl.querySelector('h1, h2') || {}).textContent || ('Slide ' + (slideIndex + 1));
+    const notes = speakerNotes[slideIndex] || '<em style="color:#888;">No speaker notes for this slide.</em>';
+    return '<!DOCTYPE html>' +
+      '<html><head><meta charset="UTF-8"><title>Speaker Notes</title>' +
+      '<style>' +
+      '* { margin: 0; padding: 0; box-sizing: border-box; }' +
+      'body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background: #131A22; color: #C9D4DE; padding: 30px; line-height: 1.7; }' +
+      '.header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #21A57F; padding-bottom: 15px; margin-bottom: 25px; }' +
+      '.slide-num { font-size: 0.9rem; color: #21A57F; font-weight: 700; background: rgba(33,165,127,0.15); padding: 4px 14px; border-radius: 20px; white-space: nowrap; }' +
+      '.slide-title { font-size: 1.3rem; font-weight: 700; color: #fff; flex: 1; margin-left: 15px; }' +
+      '.notes-body { font-size: 1.1rem; line-height: 1.8; color: #C9D4DE; padding-bottom: 60px; }' +
+      '.notes-body strong { color: #fff; }' +
+      '.notes-body em { color: #21A57F; font-style: normal; }' +
+      '.notes-body code { font-family: ui-monospace, monospace; font-size: 0.95em; background: #1F2A36; padding: 1px 6px; border-radius: 4px; }' +
+      '.nav-hint { position: fixed; bottom: 0; left: 0; right: 0; background: #131A22; text-align: center; font-size: 0.8rem; color: #666; border-top: 1px solid #26313D; padding: 12px 30px; }' +
+      '</style></head><body>' +
+      '<div class="header"><span class="slide-num">Slide ' + (slideIndex + 1) + ' / ' + slides.length + '</span>' +
+      '<span class="slide-title">' + title + '</span></div>' +
+      '<div class="notes-body">' + notes + '</div>' +
+      '<div class="nav-hint">Navigate slides in the main window — notes update automatically</div>' +
+      '</body></html>';
+  }
+
+  function toggleNotes() {
+    if (notesWindow && !notesWindow.closed) {
+      notesWindow.close();
+      notesWindow = null;
+    } else {
+      notesWindow = window.open('', 'speakerNotes',
+        'width=540,height=640,left=' + (screen.width - 580) + ',top=80,scrollbars=yes,resizable=yes');
+      if (notesWindow) {
+        notesWindow.document.open();
+        notesWindow.document.write(getNotesHTML(cur));
+        notesWindow.document.close();
+      }
+    }
+  }
+
+  function updateNotesWindow() {
+    if (notesWindow && !notesWindow.closed) {
+      notesWindow.document.open();
+      notesWindow.document.write(getNotesHTML(cur));
+      notesWindow.document.close();
+    }
+  }
+
+  document.getElementById('notesToggle').addEventListener('click', toggleNotes);
+
+  const goBase = go;
+  go = function (i) { goBase(i); updateNotesWindow(); };
+
+  const h = parseInt(location.hash.slice(1), 10);
+  if (h >= 1 && h <= slides.length) go(h - 1); else go(0);
+</script>
+</body>
+</html>
