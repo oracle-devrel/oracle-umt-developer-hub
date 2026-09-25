@@ -1,14 +1,3 @@
----
-name: migrate-kafka-to-oracle
-description: Step-by-step migration sample from Apache Kafka to Oracle AI Database Transactional Event Queues.
-tags:
-  - Database
-  - Java
-  - Kafka
-  - TxEventQ
-blog_post: "https://andersswanson.dev/2025/05/28/migrate-apache-kafka-applications-to-oracle-database/"
----
-
 # Migrate Apache Kafka to Oracle AI Database Transactional Event Queues (TxEventQ)
 
 This module demonstrates progressively migrating an app from Apache Kafka to [TxEventQ](https://oracle.github.io/microservices-datadriven/transactional-event-queues/getting-started/index.html), using the Kafka Java Client for Oracle AI Database Transactional Event Queues.

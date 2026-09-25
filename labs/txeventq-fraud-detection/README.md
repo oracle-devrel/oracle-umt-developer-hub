@@ -1,17 +1,3 @@
----
-name: credit-card-fraud-detection
-description: Score OKafka credit-card charge events with relational history, Oracle Spatial distance, and Oracle AI Vector Search behavior profiles.
-tags:
-  - Java
-  - OKafka
-  - TxEventQ
-  - JSON
-  - Spatial
-  - Vector Search
-  - Testcontainers
-blog_post: "https://andersswanson.dev/2026/08/03/no-separate-database-required-real-time-multi-model-data-processing/"
----
-
 # Credit card fraud detection with OKafka
 
 This sample consumes JSON card-charge events from an OKafka `CARD_CHARGES` topic and persists an explainable fraud assessment in Oracle AI Database. It is deliberately a deterministic teaching example, not a production fraud model.
