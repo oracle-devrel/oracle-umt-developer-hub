@@ -4,7 +4,7 @@
 
 Technical resources for developers learning **Unified Model Theory (UMT)** and converged data modeling on **Oracle AI Database 26ai** — *model the domain once, project the access for every consumer.*
 
-This hub collects hands-on, **runnable** labs and companion material for the UMT / converged-database content series. Nothing here is slideware: every lab boots a real Oracle AI Database 26ai container and proves its claims by executing them — document, relational, graph, vector, spatial, and full-text in **one engine, one transaction, one optimizer.**
+This hub collects hands-on, **runnable** labs and companion material for the UMT / converged-database content series. The labs cover database modeling, Oracle Database APIs, and migrations, with setup and validation instructions in each lab.
 
 > **One truth. Many shapes. Every claim runs.**
 
@@ -14,17 +14,20 @@ This repository is organized so that each runnable asset lives in its own folder
 
 ### 🧪 Labs (`/labs`)
 
-Self-contained, runnable labs that validate converged-model claims against a live Oracle AI Database 26ai. Each lab includes a Docker environment, a validator, and its own README and quickstart, and runs itself nightly in CI so the proofs stay honest.
+Runnable labs and samples, each with its own setup and run instructions.
 
 | Name | Description | Link |
 | --- | --- | --- |
 | converged-database-lab | Runnable proofs for the converged-database article series — JSON Relational Duality, single-table vs. converged modeling, graph, vector, spatial, and full-text claims, each executing against a free Oracle AI Database 26ai container. | [![View Lab](https://img.shields.io/badge/View%20Lab-blue?style=flat-square)](./labs/converged-database-lab) |
+| oracle-database-kafka-apis | Java integration tests demonstrating Oracle AI Database Transactional Event Queues through the Kafka APIs, backed by Testcontainers. | [![View Lab](https://img.shields.io/badge/View%20Lab-blue?style=flat-square)](./labs/oracle-database-kafka-apis) |
+| migrate-kafka-to-oracle | Step-by-step Java sample migrating an Apache Kafka application to Oracle AI Database TxEventQ, OSON, and transactional messaging. | [![View Lab](https://img.shields.io/badge/View%20Lab-blue?style=flat-square)](./labs/migrate-kafka-to-oracle) |
+| txeventq-fraud-detection | Deterministic OKafka fraud-scoring integration sample with persisted assessments using Oracle Spatial and Vector Search. | [![View Lab](https://img.shields.io/badge/View%20Lab-blue?style=flat-square)](./labs/txeventq-fraud-detection) |
 
 *More labs coming as the content series expands.*
 
 ## Getting Started
 
-Each lab is self-contained. To run the converged-database lab:
+Choose a lab to get started. To run the converged-database lab:
 
 ```bash
 cd labs/converged-database-lab
