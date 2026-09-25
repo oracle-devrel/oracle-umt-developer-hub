@@ -47,7 +47,7 @@ The OKafka flow is in [FraudDetectionSample](./src/main/java/com/example/fraud/F
 
 ## Run with Select AI
 
-The optional mode uses OCI GenAI and requires an OCI identity configured in `~/.oci`, `OCI_COMPARTMENT_ID`, and `CERTS_FILE` set to the Oracle certificate archive URL used to configure HTTPS in the database container.
+The optional mode uses OCI GenAI and requires an OCI identity configured in `~/.oci`, `OCI_COMPARTMENT_ID`, and `CERTS_FILE` set to the Oracle [certificate archive URL](https://docs.oracle.com/en/database/oracle/oracle-database/26/sutil/create-ssl-wallet-with-certificates.html) used to configure HTTPS in the database container.
 
 ```shell
 export OCI_COMPARTMENT_ID=<my compartment ID>
