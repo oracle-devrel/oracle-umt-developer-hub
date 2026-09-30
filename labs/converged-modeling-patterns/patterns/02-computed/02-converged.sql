@@ -3,8 +3,10 @@
 -- Two moves, both keeping the read win without paying whole-document write amp.
 --
 -- 1) CDRs are APPEND-ONLY relational rows — one small insert per CDR, no parent
---    rewrite, no hot-document contention. A maintained summary carries the
---    rollup and is kept current IN THE SAME TRANSACTION by a row trigger:
+--    document to rewrite. A maintained summary carries the rollup and is kept
+--    current IN THE SAME TRANSACTION by a row trigger. Both models serialize per
+--    subscriber (the summary row locks, just as the document does); the
+--    converged write is ~1.5 KB instead of the whole document:
 --    "Computed, with a staleness window of zero." (Declarative equivalent:
 --    a materialized view WITH REFRESH FAST ON COMMIT over a CDR mview log.)
 --
@@ -13,8 +15,9 @@
 --    no SUM, no SORT, no full-collection scan. This is the field pattern behind
 --    the 60s -> 500ms dashboard result (a real landing page, anonymized).
 --
--- The needle-flip, resolved: the read stays cheap; the write drops from a full
--- document rewrite to a single-row counter update; the ranking stops being a
+-- The needle-flip, resolved: the read stays cheap; the write drops from a
+-- rewrite of the whole, growing document to one small row plus a single-row
+-- counter update, flat however many CDRs the cycle holds; the ranking stops being a
 -- scan. The CBO plans all of it, ACID, one transaction.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
@@ -75,18 +78,43 @@ INSERT INTO cp_subscribers VALUES ('S-001','+1-202-555-0111','UNLIMITED');
 INSERT INTO cp_subscribers VALUES ('S-002','+1-202-555-0122','METERED');
 INSERT INTO cp_subscribers VALUES ('S-003','+1-202-555-0133','UNLIMITED');
 
+-- The same mid-cycle state as the document model: 1,000 prior CDRs for S-001
+-- (the trigger builds the matching summary row), one each for S-002 and S-003.
+INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost, cdr_ts)
+SELECT 'S-001',
+       50 + MOD(LEVEL * 37, 200),
+       1 + MOD(LEVEL * 13, 30),
+       ROUND((1 + MOD(LEVEL * 13, 30)) * 0.03, 2),
+       TIMESTAMP '2026-09-01 00:00:00' + NUMTODSINTERVAL(LEVEL * 40, 'MINUTE')
+FROM   dual CONNECT BY LEVEL <= 1000;
+INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost, cdr_ts) VALUES ('S-002', 50, 5,0.15, TIMESTAMP '2026-09-02 09:00:00');
+INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost, cdr_ts) VALUES ('S-003',900,40,2.70, TIMESTAMP '2026-09-03 14:00:00');
+COMMIT;
+
 -- CDRs stream in as tiny appends; the summary tracks them in the same commit.
+-- @step Post one Call Detail Record for S-001
+-- @note One small row; the trigger maintains the summary in the same transaction. Both models serialize per subscriber; the converged write is ~1.5 KB instead of the whole document.
+-- @why Update locality still lands on one subscriber, but the write is a small CDR insert plus a one-row counter bump, not a rewrite of every prior CDR. Both models serialize per subscriber; here each serialized write is about 1.5 KB instead of the whole document.
+-- @look Rows affected is 1; Measure it shows redo that stays near 1.6 KB however many CDRs the cycle holds.
+-- @figure erd.svg Subscriber, CDR and usage summary in canonical form, beside the embedded rollup that concentrates every CDR on one document
+-- @measure record-cdr
 INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-001',120,12,0.36);
-INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-001',300,20,0.90);
-INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-002', 50, 5,0.15);
-INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-003',900,40,2.70);
 COMMIT;
 
 -- Account page read: the rollup is already there (staleness = 0), one PK lookup.
+-- @step Read the account page (rollup already there)
+-- @note Staleness = 0 — the trigger kept this current in the same transaction as the CDR insert.
+-- @why Read/write: the balance check still reads a precomputed rollup, now from a narrow summary row the trigger keeps current in the CDR's own transaction.
+-- @look total_mb and cost come from one primary-key lookup on cp_subscriber_usage, with no aggregation over cp_cdr.
 SELECT subscriber_id, total_mb, cost FROM cp_subscriber_usage WHERE subscriber_id = 'S-001';
 
 -- Hot Top-N: an index range scan on cp_ix_usage_topn + FETCH FIRST N.
 -- (EXPLAIN PLAN FOR this SELECT shows INDEX RANGE SCAN, not SORT ORDER BY.)
+-- @step Rank the top talkers (index range scan)
+-- @note No SUM, no SORT — the descending index turns Top-N into a range scan that stops after N rows.
+-- @note Field result for this change (anonymized): the dashboard's hot Top-N went from 60 s to 500 ms.
+-- @why Diversity: the ops dashboard gets its own access path, a descending index on total_mb, so Top-N stops after 5 index entries instead of sorting every subscriber.
+-- @look Up to 5 rows in total_mb order, the same ranking as the document model's sort, read from the head of the index.
 SELECT subscriber_id, total_mb, cost
 FROM   cp_subscriber_usage
 ORDER  BY total_mb DESC
@@ -105,5 +133,9 @@ SELECT JSON {
                    WHERE u.subscriber_id = s.subscriber_id )
 } FROM cp_subscribers s WITH INSERT UPDATE DELETE;
 
+-- @step Read the projected subscriber document
+-- @note The duality view includes the live rollup — no separate document to maintain for the API shape.
+-- @why Diversity without a second copy: the duality view projects the subscriber document with cycleUsage inline and read-only, joined by primary key on each read.
+-- @look subscriber_document shows cycleUsage with the same totals as the account-page read.
 SELECT JSON_SERIALIZE(data PRETTY) AS subscriber_document
 FROM   cp_subscriber_dv WHERE JSON_VALUE(data,'$._id') = 'S-001';

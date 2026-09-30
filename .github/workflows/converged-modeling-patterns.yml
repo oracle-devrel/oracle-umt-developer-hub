@@ -28,7 +28,7 @@ jobs:
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
-      - name: Build the lab image (DB + ORDS + mongosh)
+      - name: Build the lab images (DB + ORDS + mongosh, and the hands-on console)
         run: docker compose build
 
       - name: Validate both lanes (SQL + Oracle API for MongoDB)
@@ -36,4 +36,6 @@ jobs:
         # then runs every pattern across BOTH lanes — grading each .sql and .js;
         # the cross-API parity scripts exit non-zero on mismatch. It ends with a
         # combined "N passed, 0 failed" and a non-zero exit if anything failed.
+        # Stage 3 then runs the hands-on console's unit + integration suite in a
+        # container against the same database.
         run: ./run.sh
