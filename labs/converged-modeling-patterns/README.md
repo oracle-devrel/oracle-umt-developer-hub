@@ -68,6 +68,15 @@ The three knobs, on every design:
 Knob 3 can veto the other two: a read-heavy, high-diversity workload still can't embed
 a field that is hot and mutable.
 
+**Blocks are the unit of I/O, not a floor on cost.** It's tempting to assume a small
+row and a small document cost the same because both fit in one 8 KB block. Measured
+on 26ai, they don't: redo and undo grow with the bytes rewritten, and a document
+update rewrites the whole document even when it changes one field. Three counters in
+a narrow summary row log about 1.0 KB of redo per update; the same three counters
+inside a ~3.5 KB subscriber document log 8.3 KB, and repeated rewrites of a 6.2 KB
+document wrote 15× the blocks (pattern 02 has the numbers). Count bytes rewritten,
+not blocks touched.
+
 The breakpoint to keep in your head: **maintain a precomputed structure only if
 `read-freq × read-cost > write-freq × maintenance-cost`.** Writes get heavy or reads
 get rare, and it flips. Read-time compute is never free, but a real cost-based
@@ -254,7 +263,10 @@ read, copied, edited and run from there, against the same 26ai container `run.sh
 - one page per pattern: the problem, the three knob settings, and query cards for the
   document model, the converged model and (where it exists) the MongoDB API;
 - **Copy**, **Load into console**, **Run** on every card, plus a console pane with its
-  own **SQL** and **MongoDB** tabs for ad hoc statements;
+  own **SQL** and **MongoDB** tabs for ad hoc statements. **Load into console** fills both
+  tabs: the card in its own tab and the same step in the other language in the other
+  (native MongoDB operations on the JSON collections and duality views; otherwise the same
+  SQL through Oracle's `$sql` stage);
 - **Measure it** runs the document-model write and its converged counterpart back to
   back in one exclusive slot. Each side runs once unmeasured as a warm-up (parse and
   first-touch effects stay out of the numbers), then once measured: it reads the
