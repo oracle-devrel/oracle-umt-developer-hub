@@ -35,6 +35,8 @@ measure:
     - { x: 6, ratio: 8.29 }   # doc 12800 B, conv 1544 B
     - { x: 7, ratio: 9.47 }   # doc 14620 B, conv 1544 B
 ---
+<img src="../../docs/assets/oracle-logo.svg" alt="Oracle" height="18">
+
 # Pattern 02: Computed
 
 **Telecom.** Show a subscriber's current-cycle usage instantly on the account page,
@@ -124,7 +126,9 @@ moves pull it back out:
    insert the document design pays), and a row trigger keeps a three-counter summary
    row current **in the same transaction**: *Computed, with a staleness window of
    zero.* (Declarative equivalent: a materialized view `REFRESH FAST ON COMMIT` over a
-   CDR log.) The profile stays in `cp_subscribers`, and no CDR ever touches it.
+   CDR log. Exact, but measured on 26ai it costs about 8× the trigger's redo and 40×
+   its time per single-row commit; pattern 03 has the breakdown.) The profile stays in
+   `cp_subscribers`, and no CDR ever touches it.
 2. **Hot Top-N becomes an index range scan.** A descending index on the summary's
    usage column turns "top talkers" into an O(log n) seek plus `FETCH FIRST N`, no
    SORT, no full-collection scan.

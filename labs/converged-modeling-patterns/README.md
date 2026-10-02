@@ -1,4 +1,8 @@
+<img src="docs/assets/oracle-logo.svg" alt="Oracle" height="24">
+
 # Converged Modeling Patterns
+
+Built on **Oracle AI Database 26ai**.
 
 Companion repository for the 90-minute lecture **"Model the Domain, Not the Engine:
 Converged Data Modeling."** Every document-modeling pattern in this repo is a
@@ -157,6 +161,7 @@ converged-modeling-patterns/
 │   ├── Dockerfile
 │   ├── scripts/         #   install-ords.sh, entrypoint.sh (ORDS-enable CMP_USER + mongo.enabled)
 │   └── init/            #   01-grants.sql, 02-ords-enable.sql
+├── presentations/       # the Workshop 1 deck (HTML), its images and fonts, and build/ (the deck's generators)
 ├── app/                 # the hands-on console: Node 22 Express app, compose service `lab-ui` on :3100
 │   ├── src/             #   server, gate/cache, SQL+Mongo runners, content loader, HTTP + admin routes
 │   ├── public/          #   the browser UI (offline vendor bundle, no outbound requests)
@@ -307,6 +312,12 @@ room on the 26ai Free container's 2 CPU threads / 2 GB RAM.
 | `LAB_ADMIN_PASSWORD` | `LabAdmin2026` | the console's provisioning account; event mode refuses to start on the default |
 | `DB_POOL_MAX` / `MONGO_POOL_MAX` | `1` / `1` | connection caps behind the queue |
 | `EVENT_CODE`, `ADMIN_PASSWORD` | none | event mode only; see [`docs/instructor-runbook.md`](docs/instructor-runbook.md) |
+
+**The instructor deck rides along.** The console also serves the Workshop 1 deck at
+**`/deck/`** (for example http://localhost:3100/deck/), with its images and fonts, so the
+lab host is self-contained with no internet connection. In event mode it needs the
+instructor sign-in: the admin page has an **Open the instructor deck** button. In solo
+mode it is open.
 
 Every host port binds to `127.0.0.1` by default. For an event, publish only the console
 (`CMP_UI_BIND=0.0.0.0`): publishing the database ports would hand attendees LAB_ADMIN and
