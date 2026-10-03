@@ -52,6 +52,10 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
       signinLimit.fail(req.ip);
       return res.status(403).json({ error: 'wrong event code' });
     }
+    // Storage cap: a returning attendee keeps their workspace; a new one is refused when full.
+    if (!(await workspaces.findByEmail(email)) && (await workspaces.storage()).full) {
+      return res.status(503).json({ error: 'The lab is full: no new workspaces can be created. Ask the instructor.' });
+    }
     const w = await gate.run({ userId: email.toLowerCase(), label: 'sign-in', exclusive: true }, () => workspaces.assign({ email, name: name.trim() }));
     res.setHeader('Set-Cookie', cookie('lab_sid', sign(w.schema, sessionSecret), { maxAgeSec: 7 * DAY }));
     return res.json({ schema: w.schema });
@@ -94,6 +98,15 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     const p = patterns.find((x) => x.id === patternId);
     if (!p || !p.measures.some((m) => m.tag === tag)) return res.status(400).json({ error: 'unknown pattern or measure tag' });
     return res.json(await runner.measure({ user: req.user, patternId, tag }));
+  }));
+
+  r.post('/measure/sweep', wrap(async (req, res) => {
+    const { patternId, tag } = req.body ?? {};
+    const p = patterns.find((x) => x.id === patternId);
+    if (!p || !p.measures.some((m) => m.tag === tag) || !p.meta.measure?.sizes || !p.calibrate) {
+      return res.status(400).json({ error: 'unknown pattern or measure tag, or no sweep sizes' });
+    }
+    return res.json(await runner.sweep({ user: req.user, patternId, tag }));
   }));
 
   r.post('/reset', wrap(async (req, res) => {
