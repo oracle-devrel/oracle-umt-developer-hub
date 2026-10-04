@@ -37,7 +37,10 @@ export function loadConfig(env = process.env, { allowDefaultSecrets = false } = 
   return deepFreeze({
     mode,
     port: int(env, 'PORT', 3000),
+    // Optional second listener for a public tunnel (e.g. Tailscale Funnel): the attendee side only.
+    publicPort: env.PUBLIC_PORT ? int(env, 'PUBLIC_PORT', null) : null,
     patternsDir: env.PATTERNS_DIR || path.resolve(here, '../../patterns'),
+    presentationsDir: env.PRESENTATIONS_DIR || path.resolve(here, '../../presentations'),
     db: {
       host: env.DB_HOST || 'oracle',
       port: int(env, 'DB_PORT', 1521),
@@ -50,7 +53,9 @@ export function loadConfig(env = process.env, { allowDefaultSecrets = false } = 
     },
     mongo: { host: env.MONGO_HOST || env.DB_HOST || 'oracle', port: int(env, 'MONGO_PORT', 27017), poolMax: int(env, 'MONGO_POOL_MAX', 1) },
     gate: {
-      permits: 1,
+      // How many attendee statements run at once. Defaults to the pool size; exclusive work
+      // (sign-in, reset, Measure it) still takes every permit.
+      permits: int(env, 'GATE_PERMITS', int(env, 'DB_POOL_MAX', 1)),
       queueTimeoutMs: int(env, 'QUEUE_TIMEOUT_MS', 30000),
       sqlTimeoutMs: int(env, 'SQL_TIMEOUT_MS', 10000),
       mongoTimeoutMs: int(env, 'MONGO_TIMEOUT_MS', 10000),
@@ -58,5 +63,8 @@ export function loadConfig(env = process.env, { allowDefaultSecrets = false } = 
     cache: { maxEntries: int(env, 'CACHE_MAX_ENTRIES', 500), enabled: env.CACHE_ENABLED !== 'false' },
     limits: { maxRows: 500, maxBytes: 1048576, maxStatements: 20 },
     event: { code: env.EVENT_CODE || null, adminPassword },
+    // New attendees are refused once the workspaces hold this much data: 26ai Free caps user
+    // data at 12 GB for the whole database.
+    storageCapBytes: int(env, 'WORKSPACE_STORAGE_CAP_GB', 10) * 1024 ** 3,
   });
 }

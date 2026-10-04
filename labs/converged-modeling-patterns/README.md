@@ -1,4 +1,8 @@
+<img src="docs/assets/oracle-logo.svg" alt="Oracle" height="24">
+
 # Converged Modeling Patterns
+
+Built on **Oracle AI Database 26ai**.
 
 Companion repository for the 90-minute lecture **"Model the Domain, Not the Engine:
 Converged Data Modeling."** Every document-modeling pattern in this repo is a
@@ -68,6 +72,15 @@ The three knobs, on every design:
 Knob 3 can veto the other two: a read-heavy, high-diversity workload still can't embed
 a field that is hot and mutable.
 
+**Blocks are the unit of I/O, not a floor on cost.** It's tempting to assume a small
+row and a small document cost the same because both fit in one 8 KB block. Measured
+on 26ai, they don't: redo and undo grow with the bytes rewritten, and a document
+update rewrites the whole document even when it changes one field. Three counters in
+a narrow summary row log about 1.0 KB of redo per update; the same three counters
+inside a ~3.5 KB subscriber document log 8.3 KB, and repeated rewrites of a 6.2 KB
+document wrote 15× the blocks (pattern 02 has the numbers). Count bytes rewritten,
+not blocks touched.
+
 The breakpoint to keep in your head: **maintain a precomputed structure only if
 `read-freq × read-cost > write-freq × maintenance-cost`.** Writes get heavy or reads
 get rare, and it flips. Read-time compute is never free, but a real cost-based
@@ -122,7 +135,7 @@ Run any of these live: each `[PASS]` line is a slide's claim, executed.
 | [02](patterns/02-computed/) | **Computed** | Telecom | Every CDR re-aggregates + rewrites the whole subscriber doc → write storm | Append-only rows + trigger-maintained summary (staleness 0); **Top-N 60s → 500ms** |
 | [03](patterns/03-bucket/) | **Bucket** | Manufacturing / IoT | Each reading rewrites the whole, growing bucket; marches at the 16 MB ceiling | INTERVAL-partitioned rows + `GROUP BY` rollup; **29s → sub-400ms** |
 | [04](patterns/04-subset/) | **Subset** | Insurance | Push-and-trim on every claim to serve a full read that hardly happens | One table + composite index; **query the hot slice** with `FETCH FIRST` |
-| [05](patterns/05-tree-hierarchy/) | **Tree / Hierarchy** | Manufacturing BOM | Re-parent → rewrites every descendant's path; where-used a prefix can't express | Adjacency edges (reorg = one row) + `CONNECT BY` + `GRAPH_TABLE` |
+| [05](patterns/05-tree-hierarchy/) | **Tree / Hierarchy** | Manufacturing BOM | Re-parent → rewrites every descendant's path, but 200 moves a day against 2M explosions: **the path wins** until moves pass ~88k parts | **Keep the path**: one doc per part, every path under a multivalue index, one transaction per move; edges + `CONNECT BY` / `GRAPH_TABLE` measured as the losing alternative (1.5–2.5× per explosion) |
 | [06](patterns/06-outlier/) | **Outlier** | Financial | `hasExtras` + overflow + app branch = the 16 MB limit leaking into your code | No special doc: "just more rows, the optimizer plans for it" |
 
 Each folder holds a `README.md` (the teaching), `01-document-model.sql` (the starting
@@ -148,6 +161,7 @@ converged-modeling-patterns/
 │   ├── Dockerfile
 │   ├── scripts/         #   install-ords.sh, entrypoint.sh (ORDS-enable CMP_USER + mongo.enabled)
 │   └── init/            #   01-grants.sql, 02-ords-enable.sql
+├── presentations/       # the Workshop 1 deck (HTML), its images and fonts, and build/ (the deck's generators)
 ├── app/                 # the hands-on console: Node 22 Express app, compose service `lab-ui` on :3100
 │   ├── src/             #   server, gate/cache, SQL+Mongo runners, content loader, HTTP + admin routes
 │   ├── public/          #   the browser UI (offline vendor bundle, no outbound requests)
@@ -166,7 +180,7 @@ converged-modeling-patterns/
     │   ├── 02-sql-in-pipeline.js#    $sql over the Mongo wire (the value-add)
     │   └── 03-parity.js         #    Mongo $sql rollup == SQL GROUP BY, asserted
     ├── 04-subset/               # insurance, pure SQL (no natural single Mongo collection)
-    ├── 05-tree-hierarchy/       # manufacturing BOM, pure SQL (adjacency + CONNECT BY + GRAPH_TABLE)
+    ├── 05-tree-hierarchy/       # manufacturing BOM (multi-path documents + multivalue index vs edges + CONNECT BY + GRAPH_TABLE)
     └── 06-outlier/              # financial, duality projection       (+ 03-parity.js, _capture.sql)
 ```
 
@@ -254,7 +268,10 @@ read, copied, edited and run from there, against the same 26ai container `run.sh
 - one page per pattern: the problem, the three knob settings, and query cards for the
   document model, the converged model and (where it exists) the MongoDB API;
 - **Copy**, **Load into console**, **Run** on every card, plus a console pane with its
-  own **SQL** and **MongoDB** tabs for ad hoc statements;
+  own **SQL** and **MongoDB** tabs for ad hoc statements. **Load into console** fills both
+  tabs: the card in its own tab and the same step in the other language in the other
+  (native MongoDB operations on the JSON collections and duality views; otherwise the same
+  SQL through Oracle's `$sql` stage);
 - **Measure it** runs the document-model write and its converged counterpart back to
   back in one exclusive slot. Each side runs once unmeasured as a warm-up (parse and
   first-touch effects stay out of the numbers), then once measured: it reads the
@@ -296,6 +313,12 @@ room on the 26ai Free container's 2 CPU threads / 2 GB RAM.
 | `DB_POOL_MAX` / `MONGO_POOL_MAX` | `1` / `1` | connection caps behind the queue |
 | `EVENT_CODE`, `ADMIN_PASSWORD` | none | event mode only; see [`docs/instructor-runbook.md`](docs/instructor-runbook.md) |
 
+**The instructor deck rides along.** The console also serves the Workshop 1 deck at
+**`/deck/`** (for example http://localhost:3100/deck/), with its images and fonts, so the
+lab host is self-contained with no internet connection. In event mode it needs the
+instructor sign-in: the admin page has an **Open the instructor deck** button. In solo
+mode it is open.
+
 Every host port binds to `127.0.0.1` by default. For an event, publish only the console
 (`CMP_UI_BIND=0.0.0.0`): publishing the database ports would hand attendees LAB_ADMIN and
 SYS, whose credentials are in this repo. Don't run `./run.sh` during an event: its test
@@ -329,8 +352,9 @@ lanes agree:
   executable proof of *"one truth, many shapes."*
 
 Each parity script `quit(1)`s on any mismatch, so `run.sh` reports it as FAIL. Subset
-and Tree stay pure-SQL (no natural single Mongo collection for a claims table or an
-adjacency/graph traversal).
+and Tree have no parity script: Subset has no natural single Mongo collection for a
+claims table, and Tree's edge lane is a SQL traversal (its document lane's MongoDB API
+commands are in the console).
 
 ---
 

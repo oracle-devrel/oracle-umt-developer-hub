@@ -25,10 +25,32 @@ function fixture(files) {
   return root;
 }
 
-const DOC = 'CREATE TABLE d (a NUMBER);\n-- @step Read\nSELECT a FROM d;\n-- @measure m\nUPDATE d SET a = 1;\n';
-const CONV = 'CREATE TABLE c (a NUMBER);\n-- @step Read\nSELECT a FROM c;\n-- @measure m\nUPDATE c SET a = 1;\n';
+const DOC = 'CREATE TABLE d (a NUMBER);\n-- @step Read\n-- @mongo db.d.find({})\nSELECT a FROM d;\n-- @measure m\nUPDATE d SET a = 1;\n';
+const CONV = 'CREATE TABLE c (a NUMBER);\n-- @step Read\n-- @mongo db.aggregate([{ $sql: \'SELECT a FROM c\' }])\nSELECT a FROM c;\n-- @measure m\nUPDATE c SET a = 1;\n';
 
 describe('loadPatterns (fixtures)', () => {
+  it('carries each card\'s equivalent in the other language', () => {
+    const [p] = loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': DOC, '02-converged.sql': CONV,
+      '03-demo.js': '// @step Read\n// @sql SELECT a FROM d\ndb.d.find({})\n' }));
+    expect(p.lanes.document[0].mongo).toBe('db.d.find({})');
+    expect(p.lanes.converged[0].mongo).toContain('$sql');
+    expect(p.lanes.mongo[0].sql).toBe('SELECT a FROM d');
+  });
+  it('rejects a SQL card without a MongoDB equivalent', () => {
+    const doc = DOC.replace('-- @mongo db.d.find({})\n', '');
+    expect(() => loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': doc, '02-converged.sql': CONV })))
+      .toThrow(/"Read" needs a -- @mongo equivalent/);
+  });
+  it('rejects a MongoDB equivalent the console cannot parse', () => {
+    const doc = DOC.replace('db.d.find({})', 'db.d.explode({})');
+    expect(() => loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': doc, '02-converged.sql': CONV })))
+      .toThrow(/"Read".*@mongo/);
+  });
+  it('rejects a MongoDB card without a SQL equivalent', () => {
+    expect(() => loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': DOC, '02-converged.sql': CONV,
+      '03-demo.js': '// @step Read\ndb.d.find({})\n' }))).toThrow(/"Read" needs a \/\/ @sql equivalent/);
+  });
+
   it('builds cards, setup, measure pairs and a version', () => {
     const [p] = loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': DOC, '02-converged.sql': CONV }));
     expect(p.id).toBe('09-demo');
@@ -123,7 +145,24 @@ describe('help and measure front matter', () => {
     expect(p.meta.help.tabs.document).toEqual({ why: 'The starting point.', look: 'One read.', figure: { file: 'doc-shape.svg', caption: null } });
     expect(p.meta.help.tabs.converged).toBeUndefined();
     expect(p.meta.measure).toEqual({ xLabel: 'CDR line items in the document', labX: 1000, deckSlides: '18–21',
-      calibration: [{ x: 10, ratio: 1.2 }, { x: 100, ratio: 5 }, { x: 1000, ratio: 33 }, { x: 5000, ratio: 260 }] });
+      calibration: [{ x: 10, ratio: 1.2 }, { x: 100, ratio: 5 }, { x: 1000, ratio: 33 }, { x: 5000, ratio: 260 }], verdict: null, sizes: null, workload: null });
+  });
+  it('parses optional sweep sizes, which need calibrate.sql and must ascend', () => {
+    const withSizes = FM_HELP.replace('  lab_x: 1000\n', '  lab_x: 1000\n  sizes: [10, 100, 1000]\n');
+    const files = { 'README.md': withSizes, '01-document-model.sql': DOC, '02-converged.sql': CONV };
+    expect(() => loadPatterns(fixture(files))).toThrow(/calibrate\.sql/);
+    const [p] = loadPatterns(fixture({ ...files, 'calibrate.sql': 'DELETE FROM d WHERE a > :n;\n' }));
+    expect(p.meta.measure.sizes).toEqual([10, 100, 1000]);
+    expect(p.calibrate).toEqual(['DELETE FROM d WHERE a > :n']);
+    const bad = FM_HELP.replace('  lab_x: 1000\n', '  lab_x: 1000\n  sizes: [100, 10, 1000]\n');
+    expect(() => loadPatterns(fixture({ 'README.md': bad, '01-document-model.sql': DOC, '02-converged.sql': CONV, 'calibrate.sql': 'SELECT 1 FROM dual;\n' }))).toThrow(/sizes/);
+  });
+  it('parses an optional measure verdict and rejects an empty one', () => {
+    const withVerdict = FM_HELP.replace('  deck_slides: "18–21"\n', '  deck_slides: "18–21"\n  verdict: >-\n    On a normal day the document wins.\n');
+    const [p] = loadPatterns(fixture({ 'README.md': withVerdict, '01-document-model.sql': DOC, '02-converged.sql': CONV }));
+    expect(p.meta.measure.verdict).toBe('On a normal day the document wins.');
+    const empty = FM_HELP.replace('  deck_slides: "18–21"\n', '  deck_slides: "18–21"\n  verdict: ""\n');
+    expect(() => loadPatterns(fixture({ 'README.md': empty, '01-document-model.sql': DOC, '02-converged.sql': CONV }))).toThrow(/verdict/);
   });
   it('absent help and measure give empty structures, not errors', () => {
     const [p] = loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': DOC, '02-converged.sql': CONV }));

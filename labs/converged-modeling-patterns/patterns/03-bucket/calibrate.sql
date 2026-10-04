@@ -1,7 +1,17 @@
 -- Calibration resize for Measure it. x = readings in the M-100 / TEMP / 10:00 bucket AFTER
--- the measured write (the lab bucket starts empty and the measured write adds 3, so lab x = 3).
+-- the measured write (the lab bucket holds 30 seeded readings and the measured write adds 3, so lab x = 33).
 -- Both sides are pre-loaded with :n - 3 readings for that machine-hour (none when :n = 3).
 -- Document model: rebuild the bucket with :n - 3 readings and matching counters.
+-- Background documents, once per sweep: a realistically populated collection, so the
+-- lookup by _id is an index lookup as in production rather than a scan of a one-row table.
+BEGIN
+  FOR r IN (SELECT 1 FROM dual WHERE NOT EXISTS (SELECT 1 FROM bk_sensor_doc WHERE JSON_VALUE(data, '$._id') = 'M-BG0001|TEMP|2026-08-01T10')) LOOP
+    INSERT INTO bk_sensor_doc SELECT JSON_OBJECT('_id' VALUE 'M-BG' || LPAD(k, 4, '0') || '|TEMP|2026-08-01T10', 'machineId' VALUE 'M-BG' || LPAD(k, 4, '0'), 'metric' VALUE 'TEMP', 'hourStart' VALUE '2026-08-01T10:00:00Z', 'count' VALUE 1, 'sum' VALUE 80, 'max' VALUE 80, 'readings' VALUE JSON_ARRAY(JSON_OBJECT('ts' VALUE '2026-08-01T10:00:01Z', 'val' VALUE 80)) RETURNING JSON) FROM (SELECT LEVEL AS k FROM dual CONNECT BY LEVEL <= 2000);
+    COMMIT;
+    DBMS_STATS.GATHER_SCHEMA_STATS(USER);
+  END LOOP;
+END;
+/
 DELETE FROM bk_sensor_doc WHERE JSON_VALUE(data, '$._id') = 'M-100|TEMP|2026-08-01T10';
 INSERT INTO bk_sensor_doc
 SELECT JSON_OBJECT('_id' VALUE 'M-100|TEMP|2026-08-01T10', 'machineId' VALUE 'M-100', 'metric' VALUE 'TEMP',
@@ -15,7 +25,10 @@ FROM  (SELECT COUNT(*) AS cnt, SUM(val) AS total, MAX(val) AS mx,
                      TO_CHAR(TIMESTAMP '2026-08-01 10:00:00' + NUMTODSINTERVAL(k, 'SECOND'), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ts
               FROM  (SELECT LEVEL AS k FROM dual CONNECT BY LEVEL <= :n)
               WHERE  k <= :n - 3));
--- Converged: the same :n - 3 readings as rows in that hour's partition.
+-- Converged: the same :n - 3 readings as rows in that hour's partition. The summary
+-- row is cleared first; the trigger rebuilds it from the re-inserted readings.
+DELETE FROM bk_sensor_hourly
+WHERE  machine_id = 'M-100' AND metric = 'TEMP' AND hour_start = TIMESTAMP '2026-08-01 10:00:00';
 DELETE FROM bk_sensor_readings
 WHERE  machine_id = 'M-100' AND metric = 'TEMP'
 AND    reading_ts >= TIMESTAMP '2026-08-01 10:00:00' AND reading_ts < TIMESTAMP '2026-08-01 11:00:00';

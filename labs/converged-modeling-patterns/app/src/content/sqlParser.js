@@ -4,8 +4,10 @@
 // SET TRANSACTION / SET ROLE are SQL statements, not SQL*Plus settings.
 const SQLPLUS = /^(SET(?!\s+(TRANSACTION|ROLE)\b)|PROMPT|COLUMN|COL|WHENEVER|EXIT|QUIT|SPOOL|DEFINE|UNDEFINE|SHOW|TTITLE|BTITLE|BREAK|CLEAR)\b|^@/i;
 const PLSQL_START = /^(BEGIN|DECLARE)\b|^CREATE\s+(OR\s+REPLACE\s+)?((NON)?EDITIONABLE\s+)?(TRIGGER|PROCEDURE|FUNCTION|PACKAGE|TYPE)\b/i;
-const ANNOT = /^--\s*@(step|note|measure|why|look|figure)\b\s*(.*)$/i;
+const ANNOT = /^--\s*@(step|note|measure-read|measure|why|look|figure)\b\s*(.*)$/i;
 const FIGURE = /^([a-z0-9-]+\.svg)\s+(.+)$/;
+// -- @mongo lines carry the card's MongoDB equivalent; indentation after "@mongo " is kept.
+const MONGO = /^\s*--\s*@mongo\b ?(.*)$/i;
 
 // Shared by the SQL and mongosh parsers: fold one help annotation into an accumulator.
 export function addHelp(help, kind, val, where = 'annotation') {
@@ -18,6 +20,7 @@ export function addHelp(help, kind, val, where = 'annotation') {
   }
 }
 const emptyHelp = () => ({ why: null, look: null, figure: null });
+const emptyAnno = () => ({ title: null, notes: [], measure: null, measureRead: null, help: emptyHelp(), mongo: [] });
 
 function scanLine(line, inString) {
   for (let i = 0; i < line.length; i++) {
@@ -54,8 +57,8 @@ export function parseSqlFile(text) {
   const flush = () => {
     const sql = buf.join('\n').trim();
     if (sql) {
-      out.push({ sql, title: anno?.title ?? null, notes: anno?.notes ?? [], measure: anno?.measure ?? null,
-        help: anno?.help ?? emptyHelp(), plsql, line: startLine });
+      out.push({ sql, title: anno?.title ?? null, notes: anno?.notes ?? [], measure: anno?.measure ?? null, measureRead: anno?.measureRead ?? null,
+        help: anno?.help ?? emptyHelp(), mongo: anno?.mongo.length ? anno.mongo.join('\n') : null, plsql, line: startLine });
     }
     anno = null;
     buf = [];
@@ -67,14 +70,21 @@ export function parseSqlFile(text) {
     const t = line.trim();
     if (buf.length === 0) {
       if (!t || t === '/') return;
+      const mg = line.match(MONGO);
+      if (mg) {
+        anno ??= emptyAnno();
+        anno.mongo.push(mg[1].trimEnd());
+        return;
+      }
       const a = t.match(ANNOT);
       if (a) {
-        anno ??= { title: null, notes: [], measure: null, help: emptyHelp() };
+        anno ??= emptyAnno();
         const kind = a[1].toLowerCase();
         const val = a[2].trim();
         if (kind === 'step') anno.title = val;
         else if (kind === 'note') anno.notes.push(val);
         else if (kind === 'measure') anno.measure = val;
+        else if (kind === 'measure-read') anno.measureRead = val;
         else addHelp(anno.help, kind, val, `line ${idx + 1}`);
         return;
       }

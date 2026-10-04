@@ -22,18 +22,24 @@ help:
       why: "The same duality view, read over the MongoDB API: one set of rows, two access surfaces, one advisor row."
       look: "The advisor.office in the returned document matches what the SQL read of xr_client_dv shows."
     measure:
-      why: "The ratio is the document model's redo for the advisor move divided by the converged model's. The document side rewrites every document that embeds the advisor, so the ratio grows with that count; the converged side is one row at any count."
-      look: "Your dot at 2 embedded copies, on a reference line that reaches about 3,000× at 1,000 copies."
+      why: "Each size re-runs the advisor move with that many client documents embedding the advisor: the document model rewrites every copy, the converged model one row. The read side counts the blocks one client-360 read touches in each model, and the break-even chart turns both into reads per edit."
+      look: "The redo gap climbs from about 3× at 1 copy to about 3,000× at 1,000, while both client reads stay at 3 to 5 blocks; the document model wins at every size against the normal day's reads per edit."
 measure:
   x_label: "documents embedding the moved advisor"
   lab_x: 2
+  sizes: [1, 2, 10, 100, 1000]
+  workload: { reads_per_write: 166667, label: "about 50 million client reads against about 300 advisor edits a day" }
   deck_slides: "14–17"
+  verdict: >-
+    On a normal day the document model wins. Measured, the client-360 read touches 3 blocks from the document against 4 to 5 through the duality view's join, so the document model needs only 17 reads per advisor edit to win with 1 embedded copy, and about 5,100 with 1,000 copies. The normal day has about 167,000 (50 million reads, 300 edits). A reorg day of 8,000 edits drops that to about 6,250 reads per edit, below the break-even once an advisor's book passes roughly 1,200 copies; the deck's advisor has 2,700. That worst day, not the average one, is why the lab projects the card.
   calibration:
     - { x: 1, ratio: 3.47 }   # doc 1652 B, conv 476 B
     - { x: 10, ratio: 30.71 }   # doc 14616 B, conv 476 B
     - { x: 100, ratio: 303.83 }   # doc 144624 B, conv 476 B
     - { x: 1000, ratio: 3036.59 }   # doc 1445416 B, conv 476 B
 ---
+<img src="../../docs/assets/oracle-logo.svg" alt="Oracle" height="18">
+
 # Pattern 01: Extended Reference ⭐
 
 **Wealth management.** Open any client or account and show the servicing advisor's

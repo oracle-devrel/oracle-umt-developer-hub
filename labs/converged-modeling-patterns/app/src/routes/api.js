@@ -2,6 +2,7 @@
 import express from 'express';
 import { GateError } from '../gate.js';
 import { sign, verify, parseCookies, cookie } from '../services/auth.js';
+import { FailureLimit } from '../services/failureLimit.js';
 
 const DAY = 24 * 3600;
 
@@ -13,7 +14,7 @@ export function wrap(fn) {
   });
 }
 
-export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecret }) {
+export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecret, event, publicMode = false, signinLimit = new FailureLimit() }) {
   const r = express.Router();
   const publicPaths = new Set(['/config', '/signin', '/admin/login']);
 
@@ -31,13 +32,30 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     return next();
   }));
 
-  r.get('/config', (req, res) => res.json({ mode: cfg.mode, eventCodeRequired: cfg.mode === 'event' && Boolean(cfg.event.code) }));
+  r.get('/config', (req, res) => res.json({ mode: cfg.mode, eventCodeRequired: cfg.mode === 'event' && Boolean(event.code), instructor: !publicMode }));
 
   r.post('/signin', wrap(async (req, res) => {
     if (cfg.mode !== 'event') return res.status(404).json({ error: 'not in event mode' });
+    // req.ip: the socket address on the LAN; behind the public tunnel, the client address the
+    // tunnel appended to X-Forwarded-For (the public app trusts exactly that one hop).
+    const wait = signinLimit.retryAfter(req.ip);
+    if (wait) {
+      res.setHeader('Retry-After', String(wait));
+      return res.status(429).json({ error: `too many failed sign-ins: try again in ${Math.ceil(wait / 60)} minute(s)` });
+    }
     const { name, email, code } = req.body ?? {};
-    if (!name?.trim() || !/^[^@\s]+@[^@\s]+$/.test(email ?? '')) return res.status(400).json({ error: 'name and a valid email are required' });
-    if (cfg.event.code && code !== cfg.event.code) return res.status(403).json({ error: 'wrong event code' });
+    if (!name?.trim() || !/^[^@\s]+@[^@\s]+$/.test(email ?? '')) {
+      signinLimit.fail(req.ip);
+      return res.status(400).json({ error: 'name and a valid email are required' });
+    }
+    if (event.code && code !== event.code) {
+      signinLimit.fail(req.ip);
+      return res.status(403).json({ error: 'wrong event code' });
+    }
+    // Storage cap: a returning attendee keeps their workspace; a new one is refused when full.
+    if (!(await workspaces.findByEmail(email)) && (await workspaces.storage()).full) {
+      return res.status(503).json({ error: 'The lab is full: no new workspaces can be created. Ask the instructor.' });
+    }
     const w = await gate.run({ userId: email.toLowerCase(), label: 'sign-in', exclusive: true }, () => workspaces.assign({ email, name: name.trim() }));
     res.setHeader('Set-Cookie', cookie('lab_sid', sign(w.schema, sessionSecret), { maxAgeSec: 7 * DAY }));
     return res.json({ schema: w.schema });
@@ -49,9 +67,9 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     id: p.id,
     meta: p.meta,
     cards: {
-      document: p.lanes.document.map(({ title, notes, sql, measure, help }) => ({ title, notes, sql, measure, help })),
-      converged: p.lanes.converged.map(({ title, notes, sql, measure, help }) => ({ title, notes, sql, measure, help })),
-      mongo: p.lanes.mongo.map(({ title, notes, command, help }) => ({ title, notes, command, help })),
+      document: p.lanes.document.map(({ title, notes, sql, mongo, measure, help }) => ({ title, notes, sql, mongo, measure, help })),
+      converged: p.lanes.converged.map(({ title, notes, sql, mongo, measure, help }) => ({ title, notes, sql, mongo, measure, help })),
+      mongo: p.lanes.mongo.map(({ title, notes, command, sql, help }) => ({ title, notes, command, sql, help })),
     },
     measures: p.measures.map((m) => ({ tag: m.tag, documentSql: m.document.sql, convergedSql: m.converged.sql,
       help: { document: m.document.help, converged: m.converged.help } })),
@@ -80,6 +98,15 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     const p = patterns.find((x) => x.id === patternId);
     if (!p || !p.measures.some((m) => m.tag === tag)) return res.status(400).json({ error: 'unknown pattern or measure tag' });
     return res.json(await runner.measure({ user: req.user, patternId, tag }));
+  }));
+
+  r.post('/measure/sweep', wrap(async (req, res) => {
+    const { patternId, tag } = req.body ?? {};
+    const p = patterns.find((x) => x.id === patternId);
+    if (!p || !p.measures.some((m) => m.tag === tag) || !p.meta.measure?.sizes || !p.calibrate) {
+      return res.status(400).json({ error: 'unknown pattern or measure tag, or no sweep sizes' });
+    }
+    return res.json(await runner.sweep({ user: req.user, patternId, tag }));
   }));
 
   r.post('/reset', wrap(async (req, res) => {

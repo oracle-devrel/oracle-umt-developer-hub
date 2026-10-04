@@ -1,4 +1,5 @@
 // app/public/js/app.js
+import { landing } from './brand.js';
 import { getJSON, postJSON } from './api.js';
 import { Console, exec } from './console.js';
 import { Dock } from './dock.js';
@@ -31,7 +32,8 @@ function cardButtonsHelp() {
   return items.length ? { title: 'The card buttons', items } : null;
 }
 
-function card(title, notes, code, lane, patternId, measureTag, help) {
+// equivalent: the same step in the other language; Load puts it in the other console tab.
+function card(title, notes, code, lane, patternId, measureTag, help, equivalent = null) {
   const c = h('div', 'card');
   if (measureTag) c.append(h('span', 'badge hot', `measured: ${measureTag}`));
   const t = h('h3', null, title);
@@ -49,7 +51,7 @@ function card(title, notes, code, lane, patternId, measureTag, help) {
     out.replaceChildren(r.ok ? renderRun(r.run) : h('div', 'result error', r.message));
   });
   const actions = h('div', 'actions');
-  actions.append(copyBtn, btn('Load into console', () => cons.load(lane, code)), runBtn);
+  actions.append(copyBtn, btn('Load into console', () => cons.load(lane, code, equivalent)), runBtn);
   const actionsHelp = helpTrigger(cardButtonsHelp(), { label: 'card buttons' });
   if (actionsHelp) actions.append(actionsHelp);
   c.append(actions, out);
@@ -60,13 +62,24 @@ function measureCard(p, m) {
   const c = h('div', 'card measure');
   const title = h('h3', null, `Measure it · ${m.tag}`);
   const th = helpTrigger(p.meta.help.tabs.measure, { label: 'Measure it', patternId: p.id }); if (th) title.append(th);
+  c.append(title);
+  if (p.meta.measure?.verdict) {
+    // The first sentence is the verdict itself; set it in bold ahead of the reasoning.
+    const v = p.meta.measure.verdict; const cut = v.indexOf('. ') + 1 || v.length;
+    const box = h('p', 'measure-verdict'); box.append(h('strong', null, v.slice(0, cut)), v.slice(cut));
+    c.append(box);
+  }
   const kd = h('div', 'kicker', 'Document model'); const kdh = helpTrigger(m.help?.document, { label: 'document write', patternId: p.id }); if (kdh) kd.append(kdh);
   const kc = h('div', 'kicker', 'Converged'); const kch = helpTrigger(m.help?.converged, { label: 'converged write', patternId: p.id }); if (kch) kc.append(kch);
-  c.append(title, kd, h('pre', 'code', m.documentSql), kc, h('pre', 'code', m.convergedSql));
+  c.append(kd, h('pre', 'code', m.documentSql), kc, h('pre', 'code', m.convergedSql));
+  const sizes = p.meta.measure?.sizes ?? [];
+  if (sizes.length) {
+    c.append(h('p', 'rmeta', `Measures this write at ${sizes.length} sizes (${sizes.map((n) => n.toLocaleString('en-US')).join(', ')} ${p.meta.measure.xLabel}), then rebuilds this pattern's lab data, so any changes you made to it are reset.`));
+  }
   const out = h('div', 'card-out');
-  const b = btn('Measure it', async () => {
-    b.disabled = true; out.textContent = 'measuring… (waits for an exclusive slot)';
-    const r = await postJSON('/api/measure', { patternId: p.id, tag: m.tag });
+  const b = btn(sizes.length ? `Measure it at ${sizes.length} sizes` : 'Measure it', async () => {
+    b.disabled = true; out.textContent = `measuring at ${sizes.length} sizes… (waits for an exclusive slot)`;
+    const r = await postJSON('/api/measure/sweep', { patternId: p.id, tag: m.tag });
     b.disabled = false;
     out.replaceChildren(r.status === 200 ? renderMeasure(r.body, { pattern: p }) : h('div', 'result error', MSG[r.status] ?? r.body?.error ?? `error ${r.status}`));
   }, 'btn primary');
@@ -83,8 +96,10 @@ function home() {
     a.append(h('div', 'kicker', `Pattern ${i + 1} · ${p.meta.industry}`), h('h3', null, p.meta.title), h('p', 'problem', p.meta.problem), h('div', 'rmeta', `Deck slides ${p.meta.deck}`));
     grid.append(a);
   });
-  view.replaceChildren(h('h1', null, 'Model the domain, not the engine'),
-    h('p', 'problem', 'Six document-modeling patterns, each with the document-model starting point and the converged alternative. Copy a query, change it, run it in the console below: SQL or the MongoDB API, same data.'), grid);
+  const hero = h('section', 'hero');
+  hero.append(h('h1', null, 'Model the domain, not the engine'),
+    h('p', 'problem', 'Six document-modeling patterns, each with the document-model starting point and the converged alternative. Copy a query, change it, run it in the console below: SQL or the MongoDB API, same data.'));
+  view.replaceChildren(hero, grid);
 }
 
 function patternPage(id) {
@@ -108,9 +123,9 @@ function patternPage(id) {
   head.append(status);
 
   const tabs = [
-    ['Document model', () => p.cards.document.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help))],
-    ['Converged', () => p.cards.converged.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help))],
-    ...(p.cards.mongo.length ? [['MongoDB API', () => p.cards.mongo.map((c) => card(c.title, c.notes, c.command, 'mongo', id, null, c.help))]] : []),
+    ['Document model', () => p.cards.document.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help, c.mongo))],
+    ['Converged', () => p.cards.converged.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help, c.mongo))],
+    ...(p.cards.mongo.length ? [['MongoDB API', () => p.cards.mongo.map((c) => card(c.title, c.notes, c.command, 'mongo', id, null, c.help, c.sql))]] : []),
     ['Measure it', () => p.measures.map((m) => measureCard(p, m))],
   ];
   const TABKEY = { 'Document model': 'document', 'Converged': 'converged', 'MongoDB API': 'mongo', 'Measure it': 'measure' };
@@ -144,6 +159,12 @@ function signin() {
   const flash = h('div', 'flash');
   const submit = h('button', 'btn primary', 'Sign in'); submit.type = 'submit';
   f.append(submit, flash);
+  // The instructor console only exists in event mode, and never on the public listener.
+  if (config.mode === 'event' && config.instructor !== false) {
+    const alt = h('p', 'signin-alt', 'Running the event? ');
+    const a = h('a', null, 'Instructor sign-in'); a.href = '/admin.html';
+    alt.append(a); f.append(alt);
+  }
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     submit.disabled = true; flash.textContent = 'setting up your workspace…';
@@ -153,7 +174,11 @@ function signin() {
     if (r.status === 200) { flash.textContent = ''; boot(); } else flash.textContent = r.body?.error ?? MSG[r.status] ?? `error ${r.status}`;
   });
   document.getElementById('console').hidden = true;
-  view.replaceChildren(f);
+  view.replaceChildren(landing(f, {
+    title: 'Converged Data Modeling Lab',
+    lede: 'Model the domain, not the engine.',
+    note: 'Six document-modeling patterns, each run two ways against the same data: the document model a developer would build, and the converged alternative. Query them in SQL or through the MongoDB API, and measure what every write costs.',
+  }));
 }
 
 async function boot() {
